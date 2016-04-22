@@ -39,16 +39,20 @@
 {% if courses_list %}
 
 	 <div class="table-responsive">
-         <table class="table table-striped-expandable">
+         <table class="table table-striped-expandable" id="courses">
          	 <thead>
                 <tr>
                   <th>{% trans 'Course' %}</th>
+                  <th>{% trans 'Shortname' %}</th>
                   <th>{% trans 'Last updated' %}</th>
-                  <th>{% trans 'Downloads' %}</th>
+                  <th>{% trans 'No of Downloads' %}</th>
+                  <th>{% trans 'No of Users' %}</th>
+                  <th>{% trans 'Download Course' %}</th>
                 </tr>
               </thead>
               <tbody>
 	{% for cl in courses_list %}
+
 		<tr>
 				<td>
 					{% if cl.access_detail %}
@@ -63,10 +67,19 @@
 					- <i>{% trans 'archived' %}</i>
 				{% endif %}<br/>
 				<small>{% trans 'Tags:' %} {{ cl.course.get_tags }}</small></td>
+				<td>{{cl.course.shortname}}</td>
 				<td>{{ cl.course.lastupdated_date }} </td>
-				<td>{{ cl.course.no_downloads }} downloads by {{ cl.course.no_distinct_downloads }} users<br/>
-					<a href="{% url 'oppia_course_download' cl.course.id %}">{% trans 'download course' %}</a>
+
+				<td>{{ cl.course.no_downloads }}<br/>
+					
 				</td>
+				<td>
+					{{ cl.course.no_distinct_downloads }}
+				</td>
+				<td>
+					<button class="btn btn-primary"><a href="{% url 'oppia_course_download' cl.course.id %}"><i class="fa fa-download"></i></a></button>
+				</td>
+				
 			</tr>
 	{% endfor %}
 			</tbody>
@@ -79,4 +92,17 @@
 	{% endblocktrans %}
 {% endif %}
 
+<script type="text/javascript">
+      $(document).ready(function(){
+   var table= $('#courses').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
 {% endblock %}

@@ -4,6 +4,7 @@ import json
 import os
 import oppia
 import tablib
+import logging
 
 from dateutil.relativedelta import relativedelta
 
@@ -12,9 +13,10 @@ from django.conf import settings
 from django.contrib.auth import (authenticate, logout, views)
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator, InvalidPage, EmptyPage
-from django.core.servers.basehttp import FileWrapper
+#from django.core.servers.basehttp import FileWrapper
+from wsgiref.util import FileWrapper
 from django.core.urlresolvers import reverse
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Max, Avg, Min
 from django.forms.formsets import formset_factory
 from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import render,render_to_response
@@ -24,7 +26,7 @@ from django.utils import timezone
 
 from oppia.forms import UploadCourseStep1Form, UploadCourseStep2Form, ScheduleForm, DateRangeForm, DateRangeIntervalForm
 from oppia.forms import ActivityScheduleForm, CohortForm
-from oppia.models import Course, Tracker, Tag, CourseTag, Schedule, CourseManager, CourseCohort
+from oppia.models import Course, Tracker, Tag, CourseTag, Schedule, CourseManager, CourseCohort, SchoolCode, BaselineSurvey, Section
 from oppia.models import ActivitySchedule, Activity, Cohort, Participant, Points, UserProfile
 from oppia.permissions import *
 from oppia.quiz.models import Quiz, QuizAttempt, QuizAttemptResponse
@@ -169,6 +171,353 @@ def courses_list_view(request):
                               {'courses_list': courses_list, 
                                'tag_list': tag_list}, 
                               context_instance=RequestContext(request))
+def users_list_view(request):
+  #if request.method == 'POST':
+ #     form = UserRoleForm(request.POST)
+  #    if form.is_valid():
+   #       role = form.cleaned_data.get("role")  
+    #      user_list =UserProfile.objects.select_related('user').filter(status=role)
+     # else:   
+      #    user_list = UserProfile.objects.select_related('user')   
+
+  #else:
+    if request.user.is_superuser:
+      user_list = UserProfile.objects.select_related('user')  
+    else:
+      user_list = UserProfile.objects.select_related('user').filter(school_code=request.user.userprofile.school_code)
+  #    form = UserRoleForm(request.POST)  
+    return render_to_response('oppia/userreport.html',
+                              {'user_list': user_list,
+                             #   'form':form,
+                              'title':"Select User to view transcript"}, 
+                              context_instance=RequestContext(request))
+def user_details_view(request,user_id):
+    view_user, response = get_user(request, user_id)
+    profile=UserProfile.objects.get(user=view_user)
+    try:
+      version=Tracker.objects.filter(user=view_user,agent__contains='OppiaMobile Android').latest('submitted_date')
+    except Tracker.DoesNotExist:
+      version= None
+    try:
+      device=Tracker.objects.filter(user=view_user,agent__contains='Dalvik').latest('submitted_date')
+    except Tracker.DoesNotExist:
+      device= None
+    try:
+      school=SchoolCode.objects.filter(school_code=profile.school_code)
+    except SchoolCode.DoesNotExist:
+      school=None
+    if response is not None:
+        return response
+    
+    cohort_courses, other_courses, all_courses = get_user_courses(request, view_user) 
+    
+    courses = []
+    quizzes = []
+    for course in all_courses:
+        completed=course.get_activities_completed(course,view_user)+course.get_no_quizzes_completed(course,view_user)
+        total=course.get_no_activities()+course.get_no_quizzes()
+        percentage=(float(completed)/100)*total
+        data = {'course': course,
+                'no_quizzes_completed': course.get_no_quizzes_completed(course,view_user),
+                'pretest_score': course.get_pre_test_score(course,view_user),
+                'no_activities_completed': course.get_activities_completed(course,view_user),
+                'no_quizzes_completed': course.get_no_quizzes_completed(course,view_user),
+                'no_points': course.get_points(course,view_user),
+                'no_badges': course.get_badges(course,view_user),
+                'percentage_complete':float("{0:.6f}".format(percentage)),}
+        courses.append(data)
+
+        act_quizzes = Activity.objects.filter(section__course=course,type=Activity.QUIZ).order_by('section__order','order')
+       
+        for aq in act_quizzes:
+            quiz = Quiz.objects.filter(quizprops__value=aq.digest, quizprops__name="digest")
+            attempts = QuizAttempt.objects.filter(quiz=quiz, user=view_user)
+            section_courseid=Section.objects.raw('select c.title, s.id, c.id from oppia_section s, oppia_course c where s.course_id=c.id and s.id='+str(aq.section_id))
+        #section_courseid=Section.objects.filter(pk=aq.section_id).select_related()
+            if attempts.count() > 0:
+                max_score = 100*float(attempts.aggregate(max=Max('score'))['max']) / float(attempts[0].maxscore)
+                min_score = 100*float(attempts.aggregate(min=Min('score'))['min']) / float(attempts[0].maxscore)
+                avg_score = 100*float(attempts.aggregate(avg=Avg('score'))['avg']) / float(attempts[0].maxscore)
+                first_date = attempts.aggregate(date=Min('attempt_date'))['date']
+                recent_date = attempts.aggregate(date=Max('attempt_date'))['date']
+                first_score = 100*float(attempts.filter(attempt_date = first_date)[0].score) / float(attempts[0].maxscore)
+                latest_score = 100*float(attempts.filter(attempt_date = recent_date)[0].score) / float(attempts[0].maxscore)
+            else:
+                max_score = None
+                min_score = None
+                avg_score = None
+                first_score = None
+                latest_score = None
+            
+                quiz = {'quiz': aq,
+                'section':list(section_courseid),
+                'no_attempts': attempts.count(),
+                'max_score': max_score,
+                'min_score': min_score,
+                'first_score': first_score,
+                'latest_score': latest_score,
+                'avg_score': avg_score,
+                 }
+                quizzes.append(quiz);
+   
+    return render_to_response('oppia/userdetails.html',
+                              {'view_user': view_user,
+                              'title':'Student Transcript',
+                              'profile':profile,
+                              'version':version,
+                              'device':device,
+                              'courses': courses, 
+                              'quizzes':quizzes,
+                            }, 
+                              context_instance=RequestContext(request))
+
+
+def final_quiz_scores_view(request):
+    quizzes=[]
+    if request.user.is_superuser:
+      tracker_quiz=Tracker.objects.filter(type="quiz", activity_title__contains='Final').annotate(date=Max('submitted_date')).select_related()
+    else:
+      tracker_quiz=Tracker.objects.filter(type="quiz", activity_title__contains='Final', user__userprofile__school_code=request.user.userprofile.school_code).annotate(date=Max('submitted_date')).select_related()
+   
+      
+    start_date = datetime.datetime.now() - datetime.timedelta(days=31)
+    end_date = datetime.datetime.now()
+    if request.method == 'POST':
+        form = DateRangeForm(request.POST)
+        if form.is_valid():
+            start_date = form.cleaned_data.get("start_date")  
+            start_date = datetime.datetime.strptime(start_date,"%Y-%m-%d")
+            end_date = form.cleaned_data.get("end_date")
+            end_date = datetime.datetime.strptime(end_date,"%Y-%m-%d") 
+            if request.user.is_superuser:
+                trackers = Tracker.objects.filter(type="quiz", activity_title__contains='Final',tracker_date__gte=start_date, tracker_date__lte=end_date).annotate(date=Max('submitted_date')).select_related()
+            else:
+                trackers = Tracker.objects.filter(type="quiz", activity_title__contains='Final' , user__userprofile__school_code=request.user.userprofile.school_code,tracker_date__gte=start_date, tracker_date__lte=end_date).annotate(date=Max('submitted_date')).select_related()
+        else:
+            if request.user.is_superuser:
+                trackers = Tracker.objects.filter(type="quiz", activity_title__contains='Final').annotate(date=Max('submitted_date')).select_related()         
+            else:
+                trackers = Tracker.objects.filter(type="quiz", activity_title__contains='Final', user__userprofile__school_code=request.user.userprofile.school_code).annotate(date=Max('submitted_date')).select_related()      
+    else:
+        data = {}
+        data['start_date'] = start_date
+        data['end_date'] = end_date
+        form = DateRangeForm(initial=data)
+        if request.user.is_superuser:
+            trackers = Tracker.objects.filter(type="quiz", activity_title__contains='Final').annotate(date=Max('submitted_date')).select_related()
+        else:
+            trackers = Tracker.objects.filter(type="quiz", activity_title__contains='Final', user__userprofile__school_code=request.user.userprofile.school_code).annotate(date=Max('submitted_date')).select_related()
+    for t in trackers:
+      profile=UserProfile.objects.get(user_id=t.user_id)
+      quiz_id=json.loads(t.data)
+      quiz=QuizAttempt.objects.filter(quiz_id=quiz_id['quiz_id'], user_id=t.user_id).values('quiz_id')
+
+      data={'tracker':t,
+              'profile':profile,
+              'score':quiz_id['score'],
+              'quiz':quiz,
+              'attempts':quiz.count(),
+            }
+      quizzes.append(data)
+    return render_to_response('oppia/finalquizscores.html',
+                              {'data': quizzes,
+                               'form': form,
+                              'title':"Final Quiz Scores"}, 
+                              context_instance=RequestContext(request))
+def filter_final_quiz_scores_view(request):
+  quizzes=[]
+  if request.method == 'POST':
+        form = DateRangeForm(request.POST)
+        if form.is_valid():
+            start_date = form.cleaned_data.get("start_date")  
+            #start_date = datetime.datetime.strptime(start_date,"%Y-%m-%d")
+            end_date = form.cleaned_data.get("end_date")
+            #end_date = datetime.datetime.strptime(end_date,"%Y-%m-%d") 
+            tracker_quiz = Tracker.objects.filter(type="quiz", activity_title__contains='Final',tracker_date__range=[start_date, end_date]).annotate(date=Max('submitted_date')).select_related()
+        else:
+            tracker_quiz = Tracker.objects.filter(type="quiz", activity_title__contains='Final').annotate(date=Max('submitted_date')).select_related()
+      
+        for t in tracker_quiz:
+          profile=UserProfile.objects.get(user_id=t.user_id)
+          quiz_id=json.loads(t.data)
+          quiz=QuizAttempt.objects.filter(quiz_id=quiz_id['quiz_id'], user_id=t.user_id).values('quiz_id')
+
+          data={'tracker':t,
+            'profile':profile,
+            'score':quiz_id['score'],
+            'quiz':quiz,
+            'attempts':quiz.count(),
+            }
+          quizzes.append(data)
+          return render_to_response('oppia/finalquizscores.html',
+                              {'data': quizzes,
+                              'form': form,
+                              'title':"Final Quiz Scores"}, 
+                              context_instance=RequestContext(request))
+def quiz_summary_view(request):
+    if request.user.is_superuser:
+        tracker_quiz=Tracker.objects.raw('select * , count(t.user_id) as no_users from oppia_tracker t where type="quiz" group by t.activity_title, t.course_id,t.section_title')   
+    else:
+        tracker_quiz=Tracker.objects.raw('select * , count(t.user_id) as no_users from oppia_tracker t, oppia_userprofile up where type="quiz" and up.user_id=t.user_id and up.school_code='+"'"+request.user.userprofile.school_code+"'"+' group by t.activity_title, t.course_id,t.section_title')   
+    quizzes=[]
+    for t in tracker_quiz:
+      quiz_id=json.loads(t.data)
+     
+      #quiz=QuizAttempt.objects.raw('select id,AVG(score) as score_avg, count(quiz_id) as attempts from quiz_quizattempt where quiz_id='+str(quiz_id['quiz_id'])+' and user_id='+str(t.user_id)+' group by quiz_id')
+      try:
+        course=Course.objects.get(pk=t.course_id)
+      except Course.DoesNotExist:
+        course=None
+      try:
+        quiz=QuizAttempt.objects.filter(quiz_id=quiz_id['quiz_id']).values('quiz_id').annotate(score_avg=Avg('score')).annotate(attempts=Count('quiz_id'))
+      except QuizAttempt.DoesNotExist:
+        quiz=None
+
+      data={'tracker':t,
+            'quiz':list(quiz),
+            'course':course,
+            }
+      quizzes.append(data)
+    return render_to_response('oppia/quizsummary.html',
+                              {'data': quizzes,
+                              'title':"Quiz Summary"}, 
+                              context_instance=RequestContext(request))
+def learning_center_access_view(request):
+    #tracker=Tracker.objects.raw('select t.*, c.title, up.status,up.year_group, u.first_name,u.last_name, u.is_active  from oppia_tracker t, oppia_userprofile up, auth_user u, oppia_course c where (t.type="quiz" or t.type="page") and up.user_id=t.user_id and u.id=t.user_id and t.course_id=c.id')  
+    access=[] 
+    if request.user.is_superuser:
+        trackers=Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'))
+    else:
+        trackers=Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'), user__userprofile__school_code=request.user.userprofile.school_code)
+    start_date = datetime.datetime.now() - datetime.timedelta(days=31)
+    end_date = datetime.datetime.now()
+    if request.method == 'POST':
+        form = DateRangeForm(request.POST)
+        if form.is_valid():
+            start_date = form.cleaned_data.get("start_date")  
+            start_date = datetime.datetime.strptime(start_date,"%Y-%m-%d")
+            end_date = form.cleaned_data.get("end_date")
+            end_date = datetime.datetime.strptime(end_date,"%Y-%m-%d") 
+            if request.user.is_superuser:
+                trackers = Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'),submitted_date__gte=start_date, submitted_date__lte=end_date)
+            else:
+                trackers = Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'),submitted_date__gte=start_date, submitted_date__lte=end_date,user__userprofile__school_code=request.user.userprofile.school_code)
+        else:
+            if request.user.is_superuser:
+                trackers = Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'))
+            else:
+                trackers=Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'), user__userprofile__school_code=request.user.userprofile.school_code)
+    else:
+        data = {}
+        data['start_date'] = start_date
+        data['end_date'] = end_date
+        form = DateRangeForm(initial=data)
+        if request.user.is_superuser:
+            trackers = Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'))
+        else:
+            trackers=Tracker.objects.select_related('course','user').filter(Q(type='quiz')|Q(type='page'), user__userprofile__school_code=request.user.userprofile.school_code)
+    for t in trackers:
+      profile=UserProfile.objects.get(user_id=t.user_id)
+      data={'tracker':t,
+              'profile':profile,
+            }
+      access.append(data)
+    return render_to_response('oppia/learning-center-access.html',
+                              {'data': access,
+                              'form':form,
+                              'title':"Learning Center Access"}, 
+                              context_instance=RequestContext(request))
+def learning_summary_view(request):
+    courses=Course.objects.all() 
+    access=[]
+    if request.user.is_superuser:
+        acts = Activity.objects.filter(baseline=False).values_list('digest')
+        downloads=Tracker.objects.filter(type='download', course_id__isnull=False).count()   
+        started=Tracker.objects.filter(completed=False,digest__in=acts).values_list('user_id').distinct().count()
+        completed=Tracker.objects.filter(completed=True,digest__in=acts).values_list('user_id').distinct().count()
+        quizzes=Tracker.objects.filter(digest__in=acts, type=Activity.QUIZ).values_list('user_id').distinct().count()
+    else:
+        acts = Activity.objects.filter(baseline=False).values_list('digest')
+        downloads=Tracker.objects.filter(type='download', course_id__isnull=False,user__userprofile__school_code=request.user.userprofile.school_code).count()   
+        started=Tracker.objects.filter(completed=False,type="page",user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
+        completed=Tracker.objects.filter(completed=True,type="page",user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
+        quizzes=Tracker.objects.filter(type=Activity.QUIZ, user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
+    for c in courses:
+      if request.user.is_superuser:
+          started_modules=c.get_activities_started_all(c)
+          completed_modules=c.get_activities_completed_all(c)
+          no_quizzes=c.get_no_quizzes_all(c)
+      else:
+          started_modules=Tracker.objects.filter(course=c,type="page",completed=False,user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
+          completed_modules=Tracker.objects.filter(course=c,type="page",completed=True,user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
+          no_quizzes= Tracker.objects.filter(course=c,type="quiz",user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
+          no_downloads=Tracker.objects.filter(course=c, type='download',user__userprofile__school_code=request.user.userprofile.school_code).count()
+          data={'course':c,
+            'started_modules':started_modules,
+            'completed_modules':completed_modules,
+            'no_quizzes':no_quizzes,
+            'no_downloads':no_downloads,
+            }
+      access.append(data)
+    return render_to_response('oppia/learning-summary.html',
+                              {'data': access,
+                                'downloads':downloads,
+                                'started':started,
+                                'completed':completed,
+                                'quizzes':quizzes,
+                              'title':"Learning Summary"}, 
+                              context_instance=RequestContext(request))
+def learning_summary_by_course_view(request, course_id):
+    course=Course.objects.get(pk=course_id) 
+    if request.user.is_superuser:
+        started_modules=Tracker.objects.raw('select *, count(t.user_id) as users from oppia_tracker t, oppia_userprofile up where  t.completed=0 and t.user_id=up.user_id, and up.school_code='+"'"+request.user.userprofile.school_code+"'"+' and t.course_id='+course_id+' and (t.type="page"or t.type="quiz") group by t.digest')
+        completed_modules=Tracker.objects.raw('select *, count(t.user_id) as users  from oppia_tracker t, oppia_userprofile up where  t.completed=1 and t.user_id=up.user_id, and up.school_code='+"'"+request.user.userprofile.school_code+"'"+'and t.course_id='+course_id+' and (t.type="page" or t.type="quiz") group by t.digest')
+    else:
+        started_modules=Tracker.objects.raw('select *, count(t.user_id) as users from oppia_tracker t where  t.completed=0 and t.course_id='+course_id+' and (t.type="page" or t.type="quiz") group by t.digest')
+        completed_modules=Tracker.objects.raw('select *, count(t.user_id) as users  from oppia_tracker t where  t.completed=1 and t.course_id='+course_id+' and (t.type="page" or t.type="quiz") group by t.digest')
+
+    return render_to_response('oppia/learning-summary-course.html',
+                              {'started_modules': started_modules,
+                               'completed_modules': completed_modules,
+                                'course':course,}, 
+                              context_instance=RequestContext(request))
+def report_schools_list_view(request):
+    school_list = UserProfile.objects.raw('select u.id,count(u.user_id) as c, s.school_name from oppia_userprofile u,oppia_schoolcode s where not u.school_code="-----" and u.school_code=s.school_code group by u.school_code')    
+    return render_to_response('oppia/schools_per_user_report.html',
+                              {'school_list': school_list,
+                              'title':"Users Registered Per School"}, 
+                              context_instance=RequestContext(request))
+def users_registered_per_school(request, school_code):
+    school_list =  UserProfile.objects.raw("select up.*,u.*, s.school_name from oppia_userprofile up,auth_user u,oppia_schoolcode s where not up.school_code='-----' and up.school_code=s.school_code and up.school_code='"+school_code+"' group by up.user_id") 
+    return render_to_response('oppia/users_registered_per_school.html',
+                              {'school_list': school_list,
+                              'title':"Users Registered in "+school_code}, 
+                              context_instance=RequestContext(request))
+def report_completed_module_view(request):
+    module_list = Activity.objects.raw('select a.id, a.title as mtitle,c.title as ctitle,count(t.user_id) as c from oppia_activity a, oppia_tracker t,oppia_course c where t.digest=a.digest and t.completed=1 and c.id=t.course_id group by  a.title')    
+    return render_to_response('oppia/completed_modules_report.html',
+                              {'module_list': module_list,
+                              'title':"Number of Modules completed"}, 
+                              context_instance=RequestContext(request))
+def report_started_module_view(request):
+    module_list = Activity.objects.raw('select a.id, a.title as mtitle,c.title as ctitle,count(t.user_id) as c from oppia_activity a, oppia_tracker t,oppia_course c where t.digest=a.digest and t.completed=0 and c.id=t.course_id group by  a.title')    
+    return render_to_response('oppia/completed_modules_report.html',
+                              {'module_list': module_list,
+                              'title':"Number of Modules started"}, 
+                              context_instance=RequestContext(request))
+def report_survey_results_view(request):
+    if request.user.is_superuser: 
+      module_list = BaselineSurvey.objects.filter(user__userprofile__school_code=request.user.userprofile.school_code)    
+    else:
+      module_list = BaselineSurvey.objects.all()    
+    return render_to_response('oppia/survey-results.html',
+                              {'module_list': module_list,
+                              'title':"Survey Results"}, 
+                              context_instance=RequestContext(request))
+def about_view(request):
+    return render_to_response('oppia/about.html',
+                              {'title':"About"}, 
+                              context_instance=RequestContext(request))
 
 def course_download_view(request, course_id):
     try:
@@ -241,6 +590,7 @@ def upload_step2(request, course_id):
                 is_draft = form.cleaned_data.get("is_draft")
                 if len(tags) > 0:
                     course.is_draft = is_draft
+                    course.course_tag=form.cleaned_data.get("tags")
                     course.save()
                     for t in tags:
                         try: 
@@ -270,15 +620,17 @@ def upload_step2(request, course_id):
 
 
 def recent_activity(request,course_id):
+    #view_user = get_user(request, user_id)
     course, response = can_view_course_detail(request, course_id)
-    
+    leaderboard = Points.get_leaderboard(10, course)
+
     if response is not None:
         return response
     
     start_date = datetime.datetime.now() - datetime.timedelta(days=31)
     end_date = datetime.datetime.now()
     interval = 'days'
-    
+
     if request.method == 'POST':
         form = DateRangeIntervalForm(request.POST)
         if form.is_valid():
@@ -342,12 +694,12 @@ def recent_activity(request,course_id):
             dates.append([temp.strftime("%b %y"),count_activity])
         
         
-    leaderboard = Points.get_leaderboard(10, course)
+    
     return render_to_response('oppia/course/activity.html',
                               {'course': course,
                                'form': form,
                                 'data':dates, 
-                                'leaderboard':leaderboard}, 
+                                'leaderboard':leaderboard,}, 
                               context_instance=RequestContext(request))
 
 def recent_activity_detail(request,course_id):

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load display_functions %}
+{% load crispy_forms_tags %}
+
+{% block extra_head_title %}
+	{% trans 'Learning Center Access' %}
+{% endblock extra_head_title %}
+
+{% block extra_body %}
+  onload="setUpDatePicker();"
+{% endblock extra_body %}
+
+
+{% block extra_scripts %}
+  <script type="text/javascript">
+  {% include "oppia/includes/init-date-picker-js.html" %}
+</script>
+{% endblock extra_scripts %}
+{% block content %}
+
+
+<h3>{{title}}</h3>
+{% trans 'Filter by Date: ' %}
+{% crispy form %}
+	<div class="table-responsive">
+         <table class="table table-striped display" id="courses">
+         	<thead>
+                <tr>
+                  <th>{% trans 'Name' %}</th>
+                  <th>{% trans 'Role' %}</th>
+                  <th>{% trans 'Status' %}</th>
+                  <th>{% trans 'Year Group' %}</th>
+                  <th>{% trans 'Timestamp' %}</th>
+                  <th>{% trans 'Course' %}</th>
+                  <th>{% trans 'Activity Status' %}</th>
+                  <th>{% trans 'Section Title' %}</th>
+                  <th>{% trans 'Activity Title' %}</th>
+                  <th>{% trans 'Time Spent (Seconds)' %}</th>
+                </tr>
+              </thead>
+             <tbody>
+
+				{% for c in data%}
+    	<tr>
+            <td>{{c.tracker.user.first_name}} {{c.tracker.user.last_name}}</td>
+            <td>{{c.profile.status}}</td>
+            <td>{{c.profile.year_group}}</td>
+            {% if c.tracker.user.is_active == 1 %}
+              <td>{{"ACTIVE"}}</td>
+            {% else %}
+              <td>{{"INACTIVE"}}</td>
+            {% endif %}
+            <td>{{c.tracker.submitted_date}}</td>
+             <td>{{c.tracker.course.title|title_lang:LANGUAGE_CODE }}</td>
+           {% if c.tracker.completed == 1 %}
+              <td>{{"Completed"}}</td>
+            {% else %}
+              <td>{{"Not Completed"}}</td>
+            {% endif %}
+           
+						<td>{{c.tracker.section_title|title_lang:LANGUAGE_CODE }}</td>
+						<td>{{c.tracker.activity_title|title_lang:LANGUAGE_CODE }}</td>
+            <td>{{c.tracker.time_taken}}</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+ 		</table>
+	</div>
+	
+
+<script type="text/javascript">
+     $("#export").click(function () {
+      
+     $('#courses').tableExport({
+                    type:'excel',
+                    tableName:'courses',
+                    escape:'false',
+                    htmlContent:'false',
+                    consoleLog:'true'
+                });
+
+});
+      $(document).ready(function(){
+          var table=$('#courses').DataTable( {
+        initComplete: function () {
+            this.api().columns().every( function () {
+                var column = this;
+                var select = $('<select><option value=""></option></select>')
+                    .appendTo( $(column.footer()).empty() )
+                    .on( 'change', function () {
+                        var val = $.fn.dataTable.util.escapeRegex(
+                            $(this).val()
+                        );
+ 
+                        column
+                            .search( val ? '^'+val+'$' : '', true, false )
+                            .draw();
+                    } );
+ 
+                column.data().unique().sort().each( function ( d, j ) {
+                    select.append( '<option value="'+d+'">'+d+'</option>' )
+                } );
+            } );
+        },
+         dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+    } );
+          table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+
+ /* var table= $('#courses').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });*/
+   
+});
+</script>
+
+
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load display_functions %}
+{% load crispy_forms_tags %}
+
+{% block extra_head_title %}
+	{% trans 'Learning Summary' %}
+{% endblock extra_head_title %}
+
+{% block content %}
+
+<h3>{{title}}</h3>
+	<div class="table-responsive">
+  <table class="table table-striped" >
+    <tr>
+      <td><strong>Total Number of Course Downloads</strong></td>
+      <td>{{downloads}}</td>
+    </tr>
+    <tr>
+      <td><strong>Total Number of Students who began a module</strong></td>
+      <td>{{started}}</td>
+    </tr>
+    <tr>
+      <td><strong>Total Number of Students who completed a module</strong></td>
+      <td>{{completed}}</td>
+    </tr>
+     <tr>
+      <td><strong>Total Number of Students who took quizzes</strong></td>
+      <td>{{quizzes}}</td>
+    </tr>
+  </table>
+  <h2>Courses (Click on course to see break down)</h2>
+         <table class="table table-striped" id="courses">
+         	<thead>
+                <tr>
+                  <th>{% trans 'Course' %}</th>
+                  <th>{% trans 'Total No of Downloads' %}</th>
+                  <th>{% trans 'Total No of Started Modules' %}</th>
+                  <th>{% trans 'Total No of Completed Modules' %}</th>
+                  <th>{% trans 'Total No of Quizzes Taken' %}</th>
+                </tr>
+              </thead>
+             <tbody>
+
+				{% for c in data%}
+    	    <tr>
+            <td><a href="{% url 'oppia_learning_summary_course' c.course.id %}">{{c.course.title|title_lang:LANGUAGE_CODE }}</a></td>
+            <td>{{c.no_downloads}}</td>
+            <td>{{c.started_modules}}</td>
+            <td>{{c.completed_modules}}</td>
+            <td>{{c.no_quizzes}}</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+ 		</table>
+	</div>
+	
+
+<script type="text/javascript">
+     $("#export").click(function () {
+      
+     $('#courses').tableExport({
+                    type:'excel',
+                    tableName:'courses',
+                    escape:'false',
+                    htmlContent:'false',
+                    consoleLog:'true'
+                });
+
+});
+      $(document).ready(function(){
+   var table= $('#courses').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
+
+
+{% endblock %}

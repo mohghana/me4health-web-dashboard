@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load display_functions %}
+{% load crispy_forms_tags %}
+
+{% block extra_head_title %}
+	{% trans 'Learning Summary' %}
+{% endblock extra_head_title %}
+
+{% block content %}
+
+<h2>{{course.title|title_lang:LANGUAGE_CODE}} </h2>
+  <h3>{{'No of Downloads: '}}{{course.no_downloads}}</h3>
+	<div class="table-responsive">
+
+  <h2>Started Modules</h2>
+         <table class="table table-striped" id="started">
+         	<thead>
+                <tr>
+                  <th>{% trans 'Activity Title' %}</th>
+                  <th>{% trans 'Section Title' %}</th>
+                  <th>{% trans 'No of Users' %}</th>
+                </tr>
+              </thead>
+             <tbody>
+
+				{% for c in started_modules%}
+    	    <tr>
+            <td>{{c.activity_title|title_lang:LANGUAGE_CODE }}</td>
+            <td>{{c.section_title|title_lang:LANGUAGE_CODE }}</td>
+            <td>{{c.users}}</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+ 		</table>
+	</div>
+	
+  <div class="table-responsive">
+
+  <h2>Completed Modules</h2>
+         <table class="table table-striped" id="completed">
+          <thead>
+                <tr>
+                  <th>{% trans 'Activity Title' %}</th>
+                  <th>{% trans 'Section Title' %}</th>
+                  <th>{% trans 'No of Users' %}</th>
+
+                </tr>
+              </thead>
+             <tbody>
+
+        {% for c in completed_modules%}
+          <tr>
+            <td>{{c.activity_title|title_lang:LANGUAGE_CODE }}</td>
+            <td>{{c.section_title|title_lang:LANGUAGE_CODE }}</td>
+              <td>{{c.users}}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
+
+<script type="text/javascript">
+    
+      $(document).ready(function(){
+   var table= $('#started').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+
+       $(document).ready(function(){
+   var table= $('#completed').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
+
+
+{% endblock %}

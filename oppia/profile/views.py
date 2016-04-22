@@ -21,9 +21,9 @@ from django.utils.translation import ugettext as _
 from itertools import chain
 
 from oppia.forms import DateRangeForm, DateRangeIntervalForm
-from oppia.models import Points, Award, AwardCourse, Course, UserProfile, Tracker, Activity
+from oppia.models import Points, Award, AwardCourse, Course, UserProfile, Tracker, Activity,SchoolCode,Program
 from oppia.permissions import get_user, get_user_courses, can_view_course, can_edit_user
-from oppia.profile.forms import LoginForm, RegisterForm, ResetForm, ProfileForm, UploadProfileForm
+from oppia.profile.forms import LoginForm, RegisterForm, ResetForm, ProfileForm, UploadProfileForm,SchoolCodeForm,ProgramForm,UploadSchoolCodeForm
 from oppia.quiz.models import Quiz, QuizAttempt
 
 from tastypie.models import ApiKey
@@ -41,6 +41,7 @@ def login_view(request):
         username = request.POST.get('username')
         password = request.POST.get('password')
         next = request.POST.get('next')
+        next = None 
         print next
         user = authenticate(username=username, password=password)
         if user is not None and user.is_active:
@@ -66,19 +67,47 @@ def register(request):
         form = RegisterForm(request.POST)
         if form.is_valid(): # All validation rules pass
             # Create new user
-            username = form.cleaned_data.get("username")
+            username = form.cleaned_data.get("phone_number")
             email = form.cleaned_data.get("email")
             password = form.cleaned_data.get("password")
             first_name = form.cleaned_data.get("first_name")
             last_name = form.cleaned_data.get("last_name")
+            gender = form.cleaned_data.get("gender")
+            phone_number = form.cleaned_data.get("phone_number")
+            phone_number_two = form.cleaned_data.get("phone_number_two")
+            phone_number_three = form.cleaned_data.get("phone_number_three")
+            year_group = form.cleaned_data.get("year_group")
+            program = form.cleaned_data.get("program")
+            status = form.cleaned_data.get("status")
+            home_town = form.cleaned_data.get("home_town")
+            school_code = form.cleaned_data.get("school_code")
+
             user = User.objects.create_user(username, email, password)
             user.first_name = first_name
             user.last_name = last_name
+            user.year_group = year_group
+            user.program = program
+            user.status = status
+            user.home_town = home_town
+            user.school_code = school_code
+            if status=='Tutor':
+                user.is_staff=1
+
             user.save()
+
             user_profile = UserProfile()
             user_profile.user = user
             user_profile.job_title = form.cleaned_data.get("job_title")
             user_profile.organisation = form.cleaned_data.get("organisation")
+            user_profile.phone_number = form.cleaned_data.get("phone_number")
+            user_profile.phone_number_two = form.cleaned_data.get("phone_number_two")
+            user_profile.phone_number_three = form.cleaned_data.get("phone_number_three")
+            user_profile.year_group = form.cleaned_data.get("year_group")
+            user_profile.program = form.cleaned_data.get("program")
+            user_profile.status = form.cleaned_data.get("status")
+            user_profile.home_town = form.cleaned_data.get("home_town")
+            user_profile.school_code = form.cleaned_data.get("school_code")
+            user_profile.gender = form.cleaned_data.get("gender")
             user_profile.save()
             u = authenticate(username=username, password=password)
             if u is not None:
@@ -125,6 +154,49 @@ def reset(request):
                    'title': _(u'Reset password')},
                   context_instance=RequestContext(request))
 
+def school_code(request):
+    if request.method == 'POST': # if form submitted...
+        form = SchoolCodeForm(request.POST)
+        if form.is_valid(): # All validation rules pass
+            # Create new user
+            school_code = form.cleaned_data.get("school_code")
+            school_name = form.cleaned_data.get("school_name")
+            school = SchoolCode()
+            school.school_code = form.cleaned_data.get("school_code")
+            school.school_name = form.cleaned_data.get("school_name")
+            school.region = form.cleaned_data.get("region")
+            school.school_type = form.cleaned_data.get("school_type")
+            school.created_by = request.user
+            school.save()
+            messages.success(request, _(u"SchoolCode updated"))
+    else:
+        form = SchoolCodeForm()
+    codes_list = SchoolCode.objects.raw('SELECT * FROM oppia_schoolcode s,auth_user u where u.id=s.created_by_id')
+    return render_to_response('oppia/schoolcodeview.html', 
+                              {'form': form, 
+                               'title': _(u'School Code'), 
+                               'codes_list':codes_list,},
+                               context_instance=RequestContext(request),)
+
+def program(request):
+    if request.method == 'POST': # if form submitted...
+        form = ProgramForm(request.POST)
+        if form.is_valid(): # All validation rules pass
+            # Create new user
+           
+            program = Program()
+            program.program_name = form.cleaned_data.get("program_name")
+            program.created_by = request.user
+            program.save()
+            messages.success(request, _(u"Program added"))
+    else:
+        form = ProgramForm()
+
+    return render_to_response('oppia/form.html', 
+                              {'form': form, 
+                               'title': _(u'School Program'), },
+                               context_instance=RequestContext(request),)
+
 def edit(request, user_id=0):
     if user_id != 0:
         if can_edit_user(request, user_id):
@@ -145,18 +217,39 @@ def edit(request, user_id=0):
             view_user.email = email
             view_user.first_name = first_name
             view_user.last_name = last_name
+            if form.cleaned_data.get("status")=='Tutor':
+                view_user.is_staff=1
+
             view_user.save()
             
             try:
                 user_profile = UserProfile.objects.get(user=view_user)
-                user_profile.job_title = form.cleaned_data.get("job_title")
-                user_profile.organisation = form.cleaned_data.get("organisation")
+                #user_profile.job_title = form.cleaned_data.get("job_title")
+                #user_profile.organisation = form.cleaned_data.get("organisation")
+                user_profile.phone_number = form.cleaned_data.get("phone_number")
+                user_profile.phone_number_two = form.cleaned_data.get("phone_number_two")
+                user_profile.phone_number_three = form.cleaned_data.get("phone_number_three")
+                user_profile.year_group = form.cleaned_data.get("year_group")
+                user_profile.program = form.cleaned_data.get("program")
+                user_profile.gender = form.cleaned_data.get("gender")
+                user_profile.status = form.cleaned_data.get("status")
+                user_profile.home_town = form.cleaned_data.get("home_town")
+                user_profile.school_code = form.cleaned_data.get("school_code")
                 user_profile.save()
             except UserProfile.DoesNotExist:
                 user_profile = UserProfile()
                 user_profile.user = view_user
-                user_profile.job_title = form.cleaned_data.get("job_title")
-                user_profile.organisation = form.cleaned_data.get("organisation")
+                #user_profile.job_title = form.cleaned_data.get("job_title")
+                #user_profile.organisation = form.cleaned_data.get("organisation")
+                user_profile.phone_number = form.cleaned_data.get("phone_number")
+                user_profile.phone_number_two = form.cleaned_data.get("phone_number_two")
+                user_profile.phone_number_three = form.cleaned_data.get("phone_number_three")
+                user_profile.year_group = form.cleaned_data.get("year_group")
+                user_profile.program = form.cleaned_data.get("program")
+                user_profile.gender = form.cleaned_data.get("gender")
+                user_profile.status = form.cleaned_data.get("status")
+                user_profile.home_town = form.cleaned_data.get("home_town")
+                user_profile.school_code = form.cleaned_data.get("school_code")
                 user_profile.save()
             messages.success(request, _(u"Profile updated"))
             
@@ -177,7 +270,16 @@ def edit(request, user_id=0):
                                     'last_name':view_user.last_name,
                                     'api_key': key.key,
                                     'job_title': user_profile.job_title,
-                                    'organisation': user_profile.organisation,})
+                                    'organisation': user_profile.organisation,
+                                    'phone_number': user_profile.phone_number,
+                                    'gender': user_profile.gender,
+                                    'phone_number_two': user_profile.phone_number_two,
+                                    'phone_number_three': user_profile.phone_number_three,
+                                    'year_group': user_profile.year_group,
+                                    'program': user_profile.program,
+                                    'status': user_profile.status,
+                                    'home_town': user_profile.home_town,
+                                    'school_code': user_profile.school_code,})
         
     return render_to_response( 
                   'oppia/profile/profile.html', 
@@ -213,6 +315,19 @@ def badges(request):
 def user_activity(request, user_id):
     
     view_user, response = get_user(request, user_id)
+    profile=UserProfile.objects.get(user=view_user)
+    try:
+      version=Tracker.objects.filter(user=view_user,agent__contains='OppiaMobile Android').latest('submitted_date')
+    except Tracker.DoesNotExist:
+      version= None
+    try:
+      device=Tracker.objects.filter(user=view_user,agent__contains='Dalvik').latest('submitted_date')
+    except Tracker.DoesNotExist:
+      device= None
+    try:
+      school=SchoolCode.objects.filter(school_code=profile.school_code)
+    except SchoolCode.DoesNotExist:
+      school=None
     if response is not None:
         return response
     
@@ -220,13 +335,17 @@ def user_activity(request, user_id):
     
     courses = []
     for course in all_courses:
+        completed=course.get_activities_completed(course,view_user)+course.get_no_quizzes_completed(course,view_user)
+        total=course.get_no_activities()+course.get_no_quizzes()
+        percentage=(float(completed)/100)*total
         data = {'course': course,
                 'no_quizzes_completed': course.get_no_quizzes_completed(course,view_user),
                 'pretest_score': course.get_pre_test_score(course,view_user),
                 'no_activities_completed': course.get_activities_completed(course,view_user),
                 'no_quizzes_completed': course.get_no_quizzes_completed(course,view_user),
                 'no_points': course.get_points(course,view_user),
-                'no_badges': course.get_badges(course,view_user),}
+                'no_badges': course.get_badges(course,view_user),
+                'percentage_complete':float("{0:.6f}".format(percentage)),}
         courses.append(data)
     
     activity = []
@@ -249,6 +368,9 @@ def user_activity(request, user_id):
         
     return render_to_response('oppia/profile/user-scorecard.html',
                               {'view_user': view_user,
+                              'profile':profile,
+                              'version':version,
+                              'device':device,
                                'courses': courses, 
                                'activity_graph_data': activity }, 
                               context_instance=RequestContext(request))
@@ -264,7 +386,7 @@ def user_course_activity_view(request, user_id, course_id):
     act_quizzes = Activity.objects.filter(section__course=course,type=Activity.QUIZ).order_by('section__order','order')
     quizzes = []
     for aq in act_quizzes:
-        quiz = Quiz.objects.get(quizprops__value=aq.digest, quizprops__name="digest")
+        quiz = Quiz.objects.filter(quizprops__value=aq.digest, quizprops__name="digest")
         attempts = QuizAttempt.objects.filter(quiz=quiz, user=view_user)
         if attempts.count() > 0:
             max_score = 100*float(attempts.aggregate(max=Max('score'))['max']) / float(attempts[0].maxscore)
@@ -324,7 +446,7 @@ def upload_view(request):
         if form.is_valid():
             request.FILES['upload_file'].open("rb")
             csv_file = csv.DictReader(request.FILES['upload_file'].file)
-            required_fields = ['username','firstname','lastname','email']
+            required_fields = ['username','firstname','lastname','email','status','phone_number','school_code','year_group','program']
             results = []
             try:
                 for row in csv_file:
@@ -333,7 +455,7 @@ def upload_view(request):
                     for rf in required_fields:
                         if rf not in row or row[rf].strip() == '':
                             result = {}
-                            result['username'] = row['username']
+                            result['username'] = row['phone_number']
                             result['created'] = False
                             result['message'] = _(u'No %s set' % rf)
                             results.append(result)
@@ -343,9 +465,11 @@ def upload_view(request):
                         continue
                     
                     user = User()
-                    user.username = row['username']
+                    user.username = row['phone_number']
                     user.first_name = row['firstname']
                     user.last_name = row['lastname']
+                    if row['status']=='Tutor':
+                        user.is_staff=1
                     user.email = row['email']
                     auto_password = False
                     if 'password' in row:
@@ -360,9 +484,10 @@ def upload_view(request):
                         up.user = user
                         for col_name in row:
                             setattr(up, col_name, row[col_name])
+
                         up.save()
                         result = {}
-                        result['username'] = row['username']
+                        result['username'] = row['phone_number']
                         result['created'] = True
                         if auto_password:
                             result['message'] = _(u'User created with password: %s' % password)
@@ -371,7 +496,7 @@ def upload_view(request):
                         results.append(result)
                     except IntegrityError as ie:
                         result = {}
-                        result['username'] = row['username']
+                        result['username'] = row['phone_number']
                         result['created'] = False
                         result['message'] = _(u'User already exists')
                         results.append(result)
@@ -388,6 +513,69 @@ def upload_view(request):
         form = UploadProfileForm()
         
     return render_to_response('oppia/profile/upload.html', 
+                              {'form': form, 
+                               'results': results},
+                              context_instance=RequestContext(request),)
+
+def upload_schools_view(request):
+    
+    if request.method == 'POST': # if form submitted...
+        form = UploadSchoolCodeForm(request.POST,request.FILES)
+        if form.is_valid():
+            request.FILES['upload_file'].open("rb")
+            csv_file = csv.DictReader(request.FILES['upload_file'].file)
+            required_fields = ['school_name','school_code','region','school_type']
+            results = []
+            for row in csv_file:
+                    # check all required fields defined
+                all_defined = True
+                for rf in required_fields:
+                    if rf not in row or row[rf].strip() == '':
+                        result = {}
+                        result['school_name'] = row['school_name']
+                        result['created'] = False
+                        result['message'] = _(u'No %s set' % rf)
+                        results.append(result)
+                        all_defined = False
+                        
+                    if not all_defined:    
+                        continue
+                    
+                   
+                    try:
+                        school = SchoolCode.objects.get(school_code=row['school_code'])
+                        school.school_name=row['school_name']
+                        school.school_code=row['school_code']
+                        school.region=row['region']
+                        school.school_type=row['school_type']
+                        school.created_by = request.user
+                        school.save()
+                        result = {}
+                        result['school_name'] = row['school_name']
+                        result['created'] = False
+                        result['message'] = _(u'School created')
+                        results.append(result)
+                    except SchoolCode.DoesNotExist:
+                        school = SchoolCode()
+                        school.school_name=row['school_name']
+                        school.school_code=row['school_code']
+                        school.region=row['region']
+                        school.school_type=row['school_type']
+                        school.created_by = request.user
+                        school.save()
+                        result = {}
+                        result['school_name'] = row['school_name']
+                        result['created'] = False
+                        result['message'] = _(u'School created')
+                        results.append(result)
+                        #continue
+            
+            
+    else:
+        results = []
+        form = UploadSchoolCodeForm()
+        
+    return render_to_response('oppia/profile/upload-school.html', 
                               {'form': form, 
                                'results': results},
                               context_instance=RequestContext(request),)

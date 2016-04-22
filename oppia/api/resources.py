@@ -11,7 +11,8 @@ from django.contrib.auth import authenticate, login
 from django.conf import settings
 from django.core import serializers
 from django.core.mail import send_mail
-from django.core.servers.basehttp import FileWrapper
+#from django.core.servers.basehttp import FileWrapper
+from wsgiref.util import FileWrapper
 from django.db import IntegrityError
 from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse ,Http404
@@ -29,7 +30,7 @@ from tastypie.utils import trailing_slash
 from tastypie.validation import Validation
 
 from oppia.api.serializers import PrettyJSONSerializer, CourseJSONSerializer, UserJSONSerializer
-from oppia.models import Activity, Section, Tracker, Course, Media, Schedule, ActivitySchedule, Cohort, Tag, CourseTag
+from oppia.models import Activity, Section, Tracker, Course, Media, Schedule, ActivitySchedule, Cohort, Tag, CourseTag, SchoolCode,BaselineSurvey
 from oppia.models import Points, Award, Badge, UserProfile
 from oppia.profile.forms import RegisterForm
 from oppia.signals import course_downloaded
@@ -59,11 +60,12 @@ class UserResource(ModelResource):
     badging = fields.BooleanField(readonly=True)
     metadata = fields.CharField(readonly=True)
     course_points = fields.CharField(readonly=True)
+    survey_status = fields.CharField(readonly=True)
     
     class Meta:
         queryset = User.objects.all()
         resource_name = 'user'
-        fields = ['first_name', 'last_name', 'last_login','username', 'points','badges']
+        fields = ['first_name', 'last_name', 'last_login','username', 'points','badges','survey_status']
         allowed_methods = ['post']
         authentication = Authentication()
         authorization = Authorization()
@@ -72,13 +74,13 @@ class UserResource(ModelResource):
     
     def obj_create(self, bundle, **kwargs):
         
-        if 'username' not in bundle.data:
-            raise BadRequest(_(u'Username missing'))
+        if 'phone_number' not in bundle.data:
+            raise BadRequest(_(u'Phone number missing'))
         
         if 'password' not in bundle.data:
             raise BadRequest(_(u'Password missing'))
         
-        username = bundle.data['username']
+        username = bundle.data['phone_number']
         password = bundle.data['password']
         
         u = authenticate(username=username, password=password)
@@ -123,6 +125,9 @@ class UserResource(ModelResource):
     def dehydrate_course_points(self,bundle):
         course_points = list(Points.objects.exclude(course=None).filter(user=bundle.request.user).values('course__shortname').annotate(total_points=Sum('points')))
         return course_points
+    def dehydrate_survey_status(self,bundle):
+        survey_status = list(UserProfile.objects.filter(user_id=bundle.request.user.id).values('survey_status'))
+        return survey_status
 
 class RegisterResource(ModelResource):
     ''' 
@@ -157,7 +162,13 @@ class RegisterResource(ModelResource):
                 'password_again': bundle.data['passwordagain'],
                 'email': bundle.data['email'],
                 'first_name': bundle.data['firstname'],
-                'last_name': bundle.data['lastname'],}
+                'last_name': bundle.data['lastname'],
+                'phone_number': bundle.data['phone_number'],
+                'status': bundle.data['status'],
+                'year_group': bundle.data['year_group'],
+                'home_town': bundle.data['home_town'],
+                'program': bundle.data['program'],
+                'school_code': bundle.data['school_code'],}
         rf = RegisterForm(data)
         if not rf.is_valid():
             str = ""
@@ -171,6 +182,10 @@ class RegisterResource(ModelResource):
             email = bundle.data['email']
             first_name = bundle.data['firstname']
             last_name = bundle.data['lastname']
+        school_code_existing = SchoolCode.objects.filter(
+                       school_code=bundle.data['school_code'],).exists()
+        if not school_code_existing:
+            raise BadRequest(_(u'This school code does not exist!'))
         try:
             bundle.obj = User.objects.create_user(username, email, password)
             bundle.obj.first_name = first_name
@@ -179,12 +194,16 @@ class RegisterResource(ModelResource):
             
             user_profile = UserProfile()
             user_profile.user = bundle.obj
+            user_profile.phone_number= bundle.data['phone_number']
+            user_profile.status= bundle.data['status']
+            user_profile.year_group= bundle.data['year_group']
+            user_profile.home_town= bundle.data['home_town']
+            user_profile.program= bundle.data['program']
+            user_profile.school_code= bundle.data['school_code']
             if 'jobtitle' in bundle.data:
                 user_profile.job_title = bundle.data['jobtitle']
             if 'organisation' in bundle.data:
                 user_profile.organisation = bundle.data['organisation']
-            if 'phoneno' in bundle.data:
-                user_profile.phone_number= bundle.data['phoneno']
             user_profile.save()
             
             u = authenticate(username=username, password=password)
@@ -224,6 +243,269 @@ class RegisterResource(ModelResource):
     
     def dehydrate_metadata(self,bundle):
         return settings.OPPIA_METADATA
+class RegisterResource(ModelResource):
+    ''' 
+    For user registration
+    '''
+    points = fields.IntegerField(readonly=True)
+    badges = fields.IntegerField(readonly=True)
+    scoring = fields.BooleanField(readonly=True)
+    badging = fields.BooleanField(readonly=True)
+    metadata = fields.CharField(readonly=True)
+    
+    class Meta:
+        queryset = User.objects.all()
+        resource_name = 'register'
+        allowed_methods = ['post']
+        fields = ['username', 'first_name','last_name','email','points']
+        authorization = Authorization() 
+        always_return_data = True 
+        include_resource_uri = False
+         
+    def obj_create(self, bundle, **kwargs):
+        if not settings.OPPIA_ALLOW_SELF_REGISTRATION:
+            raise BadRequest(_(u'Registration is disabled on this server.'))
+        if bundle.data['status']!= "Guest":
+            required = ['username','password','passwordagain', 'email', 'firstname', 'lastname','school_code','program','year_group','status']
+        else:
+            required = ['username','password','passwordagain', 'email', 'firstname', 'lastname']
+        for r in required:
+            try:
+                bundle.data[r]
+            except KeyError:
+                raise BadRequest(_(u'Please enter your %s') % r)
+        data = {'username': bundle.data['username'],
+                'password': bundle.data['password'],
+                'password_again': bundle.data['passwordagain'],
+                'email': bundle.data['email'],
+                'first_name': bundle.data['firstname'],
+                'last_name': bundle.data['lastname'],
+                'phone_number': bundle.data['phone_number'],
+                'status': bundle.data['status'],
+                'year_group': bundle.data['year_group'],
+                'home_town': bundle.data['home_town'],
+                'program': bundle.data['program'],
+                'school_code': bundle.data['school_code'],}
+        #rf = RegisterForm(data)
+        #if not rf.is_valid():
+         #   str = ""
+          #  for key, value in rf.errors.items():
+           #     for error in value:
+            #        str += error + "\n"
+            #raise BadRequest(str)
+        #else:
+        username = bundle.data['username']
+        password = bundle.data['password']
+        email = bundle.data['email']
+        first_name = bundle.data['firstname']
+        last_name = bundle.data['lastname']
+        school_code_existing = SchoolCode.objects.filter(
+                       school_code=bundle.data['school_code'],).exists()
+        if not school_code_existing and bundle.data['status'] != "Guest":
+            raise BadRequest(_(u'This school code does not exist!'))
+        try:
+            bundle.obj = User.objects.create_user(username, email, password)
+            bundle.obj.first_name = first_name
+            bundle.obj.last_name = last_name
+            bundle.obj.save()
+            
+            user_profile = UserProfile()
+            user_profile.user = bundle.obj
+            user_profile.phone_number= bundle.data['phone_number']
+            user_profile.status= bundle.data['status']
+            user_profile.year_group= bundle.data['year_group']
+            user_profile.home_town= bundle.data['home_town']
+            user_profile.program= bundle.data['program']
+            user_profile.school_code= bundle.data['school_code']
+            #if 'jobtitle' in bundle.data:
+            #    user_profile.job_title = bundle.data['jobtitle']
+            #if 'organisation' in bundle.data:
+             #   user_profile.organisation = bundle.data['organisation']
+            user_profile.save()
+            
+            u = authenticate(username=username, password=password)
+            if u is not None:
+                if u.is_active:
+                    login(bundle.request, u)
+                    # Add to tracker
+                    tracker = Tracker()
+                    tracker.user = u
+                    tracker.type = 'register'
+                    tracker.ip = bundle.request.META.get('REMOTE_ADDR','0.0.0.0')
+                    tracker.agent =bundle.request.META.get('HTTP_USER_AGENT','unknown')
+                    tracker.save()
+            key = ApiKey.objects.get(user = u)
+            bundle.data['api_key'] = key.key
+        except IntegrityError:
+            raise BadRequest(_(u'Username "%s" already in use, please select another' % username))
+        del bundle.data['passwordagain']
+        del bundle.data['password']
+        del bundle.data['firstname']
+        del bundle.data['lastname']
+        return bundle   
+ 
+    def dehydrate_points(self,bundle):
+        points = Points.get_userscore(User.objects.get(username__exact=bundle.data['username']))
+        return points
+    
+    def dehydrate_badges(self,bundle):
+        badges = Award.get_userawards(User.objects.get(username__exact=bundle.data['username']))
+        return badges 
+    
+    def dehydrate_scoring(self,bundle):
+        return settings.OPPIA_POINTS_ENABLED
+    
+    def dehydrate_badging(self,bundle):
+        return settings.OPPIA_BADGES_ENABLED
+    
+    def dehydrate_metadata(self,bundle):
+        return settings.OPPIA_METADATA
+
+class UpdateProfileResource(ModelResource):
+    ''' 
+    For user profile update
+    '''
+    points = fields.IntegerField(readonly=True)
+    badges = fields.IntegerField(readonly=True)
+    scoring = fields.BooleanField(readonly=True)
+    badging = fields.BooleanField(readonly=True)
+    metadata = fields.CharField(readonly=True)
+    
+    class Meta:
+        queryset = User.objects.all()
+        resource_name = 'update_profile'
+        allowed_methods = ['post']
+        fields = ['username', 'first_name','last_name','email','points']
+        authorization = Authorization() 
+        always_return_data = True 
+        include_resource_uri = False
+         
+    def obj_create(self, bundle, **kwargs):
+        if bundle.data['status']!= "Guest":
+            required = ['username','email', 'first_name', 'last_name','school_code','program','year_group','status']
+        else:
+            required = ['username','email', 'first_name', 'last_name']
+        for r in required:
+            try:
+                bundle.data[r]
+            except KeyError:
+                raise BadRequest(_(u'Please enter your %s') % r)
+        #u = authenticate(username=bundle.data['username'], password=bundle.data['password'])
+        data = {'username': bundle.data['username'],
+                #'password': bundle.data['password'],
+                #'password_again': bundle.data['passwordagain'],
+                'email': bundle.data['email'],
+                'first_name': bundle.data['first_name'],
+                'last_name': bundle.data['last_name'],
+                'phone_number': bundle.data['phone_number'],
+                'phone_number_two': bundle.data['phone_number_two'],
+                'phone_number_three': bundle.data['phone_number_three'],
+                'status': bundle.data['status'],
+                'year_group': bundle.data['year_group'],
+                'home_town': bundle.data['home_town'],
+                'program': bundle.data['program'],
+                'school_code': bundle.data['school_code'],}
+      
+        username = bundle.data['username']
+        #password = bundle.data['password']
+        email = bundle.data['email']
+        first_name = bundle.data['first_name']
+        last_name = bundle.data['last_name']
+        school_code_existing = SchoolCode.objects.filter(
+                       school_code=bundle.data['school_code'],).exists()
+        if not school_code_existing and bundle.data['status'] != "Guest":
+            raise BadRequest(_(u'This school code does not exist!'))
+        try:
+            bundle.obj = User.objects.get(username=username)
+            bundle.obj.first_name = first_name
+            bundle.obj.email = email
+            bundle.obj.last_name = last_name
+            bundle.obj.save()
+
+            user_profile = UserProfile.objects.get(user=bundle.obj)
+            user_profile.user = bundle.obj
+            user_profile.phone_number= bundle.data['phone_number']
+            user_profile.phone_number_two= bundle.data['phone_number_two']
+            user_profile.phone_number_three= bundle.data['phone_number_three']
+            user_profile.status= bundle.data['status']
+            user_profile.year_group= bundle.data['year_group']
+            user_profile.home_town= bundle.data['home_town']
+            user_profile.program= bundle.data['program']
+            user_profile.school_code= bundle.data['school_code']
+            
+            user_profile.save()
+        except IntegrityError:
+            raise BadRequest(_(u'Username "%s" already in use, please select another' % username))
+        del bundle.data['first_name']
+        del bundle.data['last_name']
+        return bundle                                       
+
+    def dehydrate_points(self,bundle):
+        points = Points.get_userscore(User.objects.get(username__exact=bundle.data['username']))
+        return points
+    
+    def dehydrate_badges(self,bundle):
+        badges = Award.get_userawards(User.objects.get(username__exact=bundle.data['username']))
+        return badges 
+    
+    def dehydrate_scoring(self,bundle):
+        return settings.OPPIA_POINTS_ENABLED
+    
+    def dehydrate_badging(self,bundle):
+        return settings.OPPIA_BADGES_ENABLED
+    
+    def dehydrate_metadata(self,bundle):
+        return settings.OPPIA_METADATA
+
+class SurveyResource(ModelResource):
+    ''' 
+    For user baseline survey update
+    '''
+    
+    class Meta:
+        queryset = User.objects.all()
+        resource_name = 'survey'
+        allowed_methods = ['post']
+        fields = ['username', 'first_name','last_name','email']
+        authorization = Authorization() 
+        always_return_data = True 
+        include_resource_uri = False
+         
+    def obj_create(self, bundle, **kwargs):
+        required = ['q1_response','q2_response']
+        for r in required:
+            try:
+                bundle.data[r]
+            except KeyError:
+                raise BadRequest(_(u'Please enter your %s') % r)
+        #u = authenticate(username=bundle.data['username'], password=bundle.data['password'])
+        data = {'username': bundle.data['username'],
+                #'password': bundle.data['password'],
+                #'password_again': bundle.data['passwordagain'],
+                'q1_response': bundle.data['q1_response'],
+                'q2_response': bundle.data['q2_response'],}
+      
+        username = bundle.data['username']
+        try:
+            bundle.obj = User.objects.get(username=username)
+            try:
+                survey=BaselineSurvey.objects.get(user_id_id=bundle.obj.id)
+                survey.q1_response= bundle.data['q1_response']
+                survey.q2_response= bundle.data['q2_response']
+                survey.user_id=bundle.obj
+                survey.save()
+            except BaselineSurvey.DoesNotExist:
+                survey=BaselineSurvey()
+                survey.q1_response= bundle.data['q1_response']
+                survey.q2_response= bundle.data['q2_response']
+                survey.user_id=bundle.obj
+                survey.save()
+            user_profile = UserProfile.objects.get(user=bundle.obj)
+            user_profile.survey_status = "taken"
+            user_profile.save()
+        except IntegrityError:
+            raise BadRequest(_(u'You have taken this survey already' % username))
+        return bundle        
 
 class ResetPasswordResource(ModelResource):
     ''' 
@@ -420,7 +702,7 @@ class CourseResource(ModelResource):
         queryset = Course.objects.all()
         resource_name = 'course'
         allowed_methods = ['get']
-        fields = ['id', 'title', 'version', 'shortname','is_draft','description']
+        fields = ['id', 'title', 'version', 'shortname','is_draft','description','course_tag']
         authentication = ApiKeyAuthentication()
         authorization = ReadOnlyAuthorization() 
         serializer = CourseJSONSerializer()
@@ -574,12 +856,13 @@ class ScheduleResource(ModelResource):
    
 class TagResource(ModelResource):
     count = fields.IntegerField(readonly=True)
-    
+
+    courses=fields.IntegerField(readonly=True)
     class Meta:
         queryset = Tag.objects.all()
         resource_name = 'tag'
         allowed_methods = ['get']
-        fields = ['id','name', 'description', 'highlight', 'icon', 'order_priority']
+        fields = ['id','name', 'description', 'highlight', 'icon', 'order_priority','courses']
         authentication = ApiKeyAuthentication()
         authorization = ReadOnlyAuthorization() 
         always_return_data = True
@@ -634,7 +917,11 @@ class TagResource(ModelResource):
             return bundle.request.build_absolute_uri(bundle.data['icon'])
         else:
             return None
-    
+    def dehydrate_courses(self,bundle):
+           # courses = Course.objects.raw('SELECT c.title FROM oppia_course c,oppia_tag t where t.name=c.course_tag')    
+        courses=list(Course.objects.raw('SELECT c.id, c.title FROM oppia_course c,oppia_tag t where t.name=c.course_tag'))
+        return courses
+
     def alter_list_data_to_serialize(self, request, data):
         if isinstance(data, dict):
             if 'objects' in data:
@@ -715,3 +1002,20 @@ class AwardsResource(ModelResource):
     def dehydrate(self, bundle):
         bundle.data['award_date'] = bundle.data['award_date'].strftime("%Y-%m-%d %H:%M:%S")
         return bundle
+
+class SchoolCodeResource(ModelResource):
+    
+    class Meta:
+        queryset = SchoolCode.objects.all()
+        allowed_methods = ['get']
+        resource_name = 'schoolcodes'
+        include_resource_uri = False
+        serializer = PrettyJSONSerializer()
+        json_data=serializers.serialize('json',queryset)
+        authentication = ApiKeyAuthentication()
+        authorization = ReadOnlyAuthorization()
+        always_return_data = True
+
+    def school_code_detail(self): 
+        response = HttpResponse(json_data,mimetype='application/json',content_type="application/json; charset=utf-8")
+        return response

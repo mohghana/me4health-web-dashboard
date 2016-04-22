@@ -24,6 +24,15 @@ class UserProfile (models.Model):
     job_title = models.TextField(blank=True, null=True, default=None)
     organisation = models.TextField(blank=True, null=True, default=None)
     phone_number = models.TextField(blank=True, null=True, default=None)
+    phone_number_two = models.TextField(blank=True, null=True, default=None)
+    phone_number_three = models.TextField(blank=True, null=True, default=None)
+    year_group = models.TextField(blank=True, null=True, default=None)
+    program = models.TextField(blank=True, null=True, default=None)
+    status = models.TextField(blank=True, null=True, default=None)
+    survey_status = models.TextField(blank=True, null=True, default="")
+    home_town = models.TextField(blank=True, null=True, default=None)
+    school_code = models.TextField(blank=True, null=True, default=None)
+    gender= models.TextField(blank=True, null=True, default=None)
     
     def get_can_upload(self):
         if self.user.is_staff:
@@ -54,6 +63,7 @@ class Course(models.Model):
     lastupdated_date = models.DateTimeField('date updated',default=timezone.now)
     version = models.BigIntegerField()
     title = models.TextField(blank=False)
+    course_tag = models.TextField(blank=False)
     description = models.TextField(blank=True, null=True, default=None)
     shortname = models.CharField(max_length=200)
     filename = models.CharField(max_length=200)
@@ -154,9 +164,14 @@ class Course(models.Model):
             baseline = Activity.objects.get(section__course=course,type=Activity.QUIZ,section__order=0)
         except Activity.DoesNotExist:
             return None
-        
-        quiz = Quiz.objects.get(quizprops__value=baseline.digest, quizprops__name="digest")
-        attempts = QuizAttempt.objects.filter(quiz=quiz, user=user)
+        try:
+            quiz = Quiz.objects.get(quizprops__value=baseline.digest, quizprops__name="digest")
+        except Quiz.DoesNotExist:
+            return None
+        try:
+            attempts = QuizAttempt.objects.filter(quiz=quiz, user=user)
+        except QuizAttempt.DoesNotExist:
+            return None
         if attempts.count() != 0:
             max_score = 100*float(attempts.aggregate(max=Max('score'))['max']) / float(attempts[0].maxscore)
             return max_score
@@ -172,7 +187,45 @@ class Course(models.Model):
     def get_activities_completed(course,user):
         acts = Activity.objects.filter(section__course=course,baseline=False).values_list('digest')
         return Tracker.objects.filter(course=course,user=user,completed=True,digest__in=acts).values_list('digest').distinct().count()
+
+    @staticmethod
+    def get_no_quizzes_completed_all(course):
+        acts = Activity.objects.filter(section__course=course,baseline=False, type=Activity.QUIZ).values_list('digest')
+        return Tracker.objects.filter(course=course,completed=True,digest__in=acts).values_list('digest').distinct().count()
     
+    @staticmethod
+    def get_activities_completed_all(course):
+        acts = Activity.objects.filter(section__course=course,baseline=False).values_list('digest')
+        return Tracker.objects.filter(course=course,completed=True,digest__in=acts).values_list('digest').distinct().count()
+    @staticmethod
+    def get_no_quizzes_all(course):
+        acts = Activity.objects.filter(section__course=course,baseline=False, type=Activity.QUIZ).values_list('digest')
+        return Tracker.objects.filter(course=course,digest__in=acts).values_list('digest').distinct().count()
+    
+    @staticmethod
+    def get_activities_started_all(course):
+        acts = Activity.objects.filter(section__course=course,baseline=False).values_list('digest')
+        return Tracker.objects.filter(course=course,completed=False,digest__in=acts).values_list('digest').distinct().count()
+
+
+    @staticmethod
+    def get_no_quizzes_completed_overall():
+        acts = Activity.objects.filter(baseline=False, type=Activity.QUIZ).values_list('digest')
+        return Tracker.objects.filter(completed=True,digest__in=acts).values_list('digest').distinct().count()
+    
+    @staticmethod
+    def get_activities_completed_overall():
+        acts = Activity.objects.filter(baseline=False).values_list('digest')
+        return Tracker.objects.filter(completed=True,digest__in=acts).values_list('digest').distinct().count()
+    @staticmethod
+    def get_no_quizzes_overall():
+        acts = Activity.objects.filter(baseline=False, type=Activity.QUIZ).values_list('digest')
+        return Tracker.objects.filter(digest__in=acts).values_list('digest').distinct().count()
+    
+    @staticmethod
+    def get_activities_started_overall():
+        acts = Activity.objects.filter(baseline=False).values_list('digest')
+        return Tracker.objects.filter(completed=False,digest__in=acts).values_list('digest').distinct().count()
     @staticmethod
     def get_points(course,user):
         points = Points.objects.filter(course=course,user=user).aggregate(total=Sum('points'))
@@ -190,7 +243,17 @@ class CourseManager(models.Model):
     class Meta:
         verbose_name = _('Course Manager')
         verbose_name_plural = _('Course Managers')
-               
+
+class BaselineSurvey(models.Model):
+    q1_response = models.TextField(blank=False)
+    q2_response = models.TextField(blank=False)
+    created_date = models.DateTimeField('date created',default=timezone.now)
+    user_id = models.ForeignKey(User)
+    
+    class Meta:
+        verbose_name = _('BaselineSurvey')
+        verbose_name_plural = _('BaselineSurveys')
+                  
 class Tag(models.Model):
     name = models.TextField(blank=False)
     created_date = models.DateTimeField('date created',default=timezone.now)
@@ -215,7 +278,33 @@ class CourseTag(models.Model):
     class Meta:
         verbose_name = _('Course Tag')
         verbose_name_plural = _('Course Tags')
-           
+class SchoolCode(models.Model):
+    school_name = models.TextField(blank=False)
+    created_date = models.DateTimeField('date created',default=timezone.now)
+    created_by = models.ForeignKey(User)
+    school_code = models.TextField(blank=True, null=True, default=None)
+    region = models.TextField(blank=False)
+    school_type = models.TextField(blank=False)
+    
+    class Meta:
+        verbose_name = _('School Code')
+        verbose_name_plural = _('School Codes')
+        
+    def __unicode__(self):
+        return self.school_name
+
+class Program(models.Model):
+    program_name = models.TextField(blank=False)
+    created_date = models.DateTimeField('date created',default=timezone.now)
+    created_by = models.ForeignKey(User)
+    
+    class Meta:
+        verbose_name = _('Program')
+        verbose_name_plural = _('Programs')
+        
+    def __unicode__(self):
+        return self.program_name        
+
 class Schedule(models.Model):
     title = models.TextField(blank=False)
     course = models.ForeignKey(Course)
@@ -458,7 +547,6 @@ class Tracker(models.Model):
         if media >= 1:
             return True
         return False
- 
     @staticmethod
     def has_completed_trackers(course,user):
         count = Tracker.objects.filter(user=user, course=course,completed=True).count()        
@@ -520,7 +608,10 @@ class Tracker(models.Model):
         if time['total'] is None:
             return 0
         return time['total']
-    
+    def get_user_version(user,type):
+        results = Tracker.objects.filter(user=user,type=type).latest('submitteddate')
+       
+        return results 
     def get_lang(self):
         try:
             json_data = json.loads(self.data)
@@ -732,6 +823,11 @@ class Points(models.Model):
             
         for u in users:
             u.badges = Award.get_userawards(u,course)
+            if course is not None:
+                completed=course.get_activities_completed(course,u)+course.get_no_quizzes_completed(course,u)
+                total=course.get_no_activities()+course.get_no_quizzes()
+                percentage=(float(completed)/100)*total
+                u.percentage=percentage
             if u.total is None:
                 u.total = 0
         return users

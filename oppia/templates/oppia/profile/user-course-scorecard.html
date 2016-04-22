@@ -15,7 +15,7 @@
 
 <h3>{% trans 'Quizzes' %}</h3>
 <div class="table-responsive">
-    <table class="table table-striped">
+    <table class="table table-striped" id="quizzes">
     	<thead>
            <tr>
              <th>{% trans 'Quiz' %}</th>
@@ -42,4 +42,20 @@
 		</tbody>
  	</table>
 </div>
+<div> <button id="export" class="btn btn-primary">Export <i class="fa fa-file-excel-o"></i></button></div>
+
+<script type="text/javascript">
+     $("#export").click(function () {
+      
+     $('#quizzes').tableExport({
+                    separator: ',',
+                    type:'excel',
+                    tableName:'quizzes',
+                    escape:'false',
+                    htmlContent:'false',
+                    consoleLog:'true'
+                });
+
+});
+</script>
 {% endblock %}

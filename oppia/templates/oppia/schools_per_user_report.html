@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% block extra_head_title %}
+	{{ title }}
+{% endblock extra_head_title %}
+
+{% block content %}
+
+<h2>{{ title }}</h2>
+
+<table class="table table-striped-expandable" id="userTable">
+<thead>
+    <tr>
+        <th>Number of Users Registered</th>
+        <th>School Name</th>
+        <th>School Code</th>
+    </tr>
+</thead>
+<tbody>
+    {% for item in school_list %}
+    <tr> 
+        <td><a href="{% url 'oppia_users_registered' item.school_code %}">{{ item.c }}</a></td>
+        <td>{{ item.school_name }}</td>
+        <td>{{ item.school_code }}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+</table>
+
+<script type="text/javascript">
+     $("#export").click(function () {
+      
+     $('#userTable').tableExport({
+                    separator: ',',
+                    type:'excel',
+                    tableName:'userTable',
+                    escape:'false',
+                    htmlContent:'false',
+                    consoleLog:'true'
+                });
+
+});
+      $(document).ready(function(){
+   var table= $('#userTable').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
+
+{% endblock %}

@@ -4,7 +4,7 @@ from django.conf.urls import patterns, include, url
 from django.views.generic import TemplateView
 
 from oppia.api.resources import TrackerResource, CourseResource, ScheduleResource, TagResource
-from oppia.api.resources import PointsResource, AwardsResource, BadgesResource, RegisterResource, UserResource, ResetPasswordResource
+from oppia.api.resources import PointsResource, AwardsResource, BadgesResource, RegisterResource, UserResource, ResetPasswordResource, SchoolCodeResource,UpdateProfileResource,SurveyResource
 from oppia.quiz.api.resources import QuizResource, QuizPropsResource, QuestionResource
 from oppia.quiz.api.resources import QuizQuestionResource, ResponseResource, QuizAttemptResource
 
@@ -28,14 +28,30 @@ v1_api.register(QuestionResource())
 v1_api.register(QuizQuestionResource())
 v1_api.register(ResponseResource())
 v1_api.register(QuizAttemptResource())
+v1_api.register(SchoolCodeResource())
+v1_api.register(UpdateProfileResource())
+v1_api.register(SurveyResource())
 
 urlpatterns = patterns('',
 
     url(r'^$', 'oppia.views.home_view', name="oppia_home"),
     url(r'^server/$', 'oppia.views.server_view', name="oppia_server"),
     url(r'^about/$', 'oppia.views.about_view', name="oppia_about"),
-    
+    url(r'^(?P<user_id>\d+)/userdetails/$', 'oppia.views.user_details_view', name="oppia_user_details"),
+    url(r'^(?P<school_code>[\w\-]+)/usersregisteredperschool/$', 'oppia.views.users_registered_per_school', name="oppia_users_registered"),
     url(r'^teacher/$', 'oppia.views.teacher_home_view', name="oppia_teacher_home"),
+    url(r'^oppia/users/$', 'oppia.views.users_list_view', name="oppia_user_list"),
+    url(r'^oppia/users_per_school/$', 'oppia.views.report_schools_list_view', name="oppia_user_per_school_list"),
+    url(r'^oppia/completed_modules/$', 'oppia.views.report_completed_module_view', name="oppia_completed_module"),
+    url(r'^oppia/started_modules/$', 'oppia.views.report_started_module_view', name="oppia_started_module"),
+    url(r'^oppia/finalquizscores/$', 'oppia.views.final_quiz_scores_view', name="oppia_final_quiz_scores"),
+    url(r'^oppia/survey/$', 'oppia.views.report_survey_results_view', name="oppia_survey_results"),
+    url(r'^oppia/learningcenteraccess/$', 'oppia.views.learning_center_access_view', name="oppia_learning_center_access"),
+    url(r'^oppia/learningsummary/$', 'oppia.views.learning_summary_view', name="oppia_learning_summary"),
+    url(r'^oppia/learningsummarycourse/(?P<course_id>\d+)/$', 'oppia.views.learning_summary_by_course_view', name="oppia_learning_summary_course"),
+    url(r'^oppia/filterfinalquizscores/$', 'oppia.views.filter_final_quiz_scores_view', name="oppia_filter_final_quiz_scores"),
+    url(r'^oppia/quizsummary/$', 'oppia.views.quiz_summary_view', name="oppia_quiz_summary"),
+    url(r'^oppia/about/$', 'oppia.views.about_view', name="oppia_about"),
     
     url(r'^leaderboard/$', 'oppia.views.leaderboard_view', name="oppia_leaderboard"),
     url(r'^upload/$', 'oppia.views.upload_step1', name="oppia_upload"),

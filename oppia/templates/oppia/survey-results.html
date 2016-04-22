@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load display_functions %}
+{% load crispy_forms_tags %}
+
+{% block extra_head_title %}
+	{% trans 'Learning Summary' %}
+{% endblock extra_head_title %}
+
+{% block content %}
+
+<h3>{{title}}</h3>
+	<div class="table-responsive">
+         <table class="table table-striped" id="courses">
+         	<thead>
+                <tr>
+                  <th>{% trans 'Response One' %}</th>
+                  <th>{% trans 'Response Two' %}</th>
+                  <th>{% trans 'Timestamp' %}</th>
+                </tr>
+              </thead>
+             <tbody>
+
+				{% for m in module_list%}
+    	<tr>
+						<td>{{m.q1_response}}</td>
+						<td>{{m.q2_response}}</td>
+            <td>{{m.created_date}}</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+ 		</table>
+	</div>
+	
+
+<script type="text/javascript">
+     $("#export").click(function () {
+      
+     $('#courses').tableExport({
+                    type:'excel',
+                    tableName:'courses',
+                    escape:'false',
+                    htmlContent:'false',
+                    consoleLog:'true'
+                });
+
+});
+      $(document).ready(function(){
+   var table= $('#courses').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
+
+
+{% endblock %}

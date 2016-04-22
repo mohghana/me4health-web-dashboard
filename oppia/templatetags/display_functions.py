@@ -14,6 +14,12 @@ register = template.Library()
 def get_index(start,index):
     return start+index
 
+@register.filter(name='index')
+def index(List, i):
+    try:
+        return List[int(i)]
+    except len(List)==0:
+        return None
 @register.filter(name='secs_to_duration')
 def secs_to_duration(secs):
     if secs == 0:

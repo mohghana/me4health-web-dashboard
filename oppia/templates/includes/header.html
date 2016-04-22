@@ -9,7 +9,7 @@
 	      <span class="icon-bar"></span>
 	      <span class="icon-bar"></span>
 	    </button>
-	    <a class="navbar-brand" href="{% url 'oppia_home' %}"><img src="{{ STATIC_URL }}oppia/images/dc_logo.png" height="24"/>{% trans 'app_name' %}</a>
+	    <a class="navbar-brand" href="{% url 'oppia_home' %}"><img src="{{ STATIC_URL }}oppia/images/dc_logo.png" height="24"/>{% trans 'app_name' %}   Welcome {{user.first_name}}</a>
 	  </div>
 	  <div class="navbar-collapse collapse">
 		    <ul class="nav navbar-nav navbar-right">
@@ -20,7 +20,7 @@
 		        	{% endif %}
 		      {% endif %}
 		       {% if user.is_staff %}
-		       		<li><a href="{% url 'oppia_cohorts' %}">{% trans 'Cohorts' %}</a></li>
+		       		<li><a href="{% url 'oppia_cohorts' %}">{% trans 'Schools' %}</a></li>
 		       		<li class="dropdown"><a href="#" data-toggle="dropdown" class="dropdown-toggle">{% trans 'Analytics' %}<b class="caret"></b></a>
 		       		<ul class="dropdown-menu">
 		       			<li><a href="{% url 'oppia_viz_summary' %}">{% trans 'Summary Overview' %}</a></li>
@@ -31,11 +31,29 @@
 		       		</ul>
 					</li>
 		       {% endif %}
+		        {% if user.is_staff %}
+		       		<li class="dropdown"><a href="#" data-toggle="dropdown" class="dropdown-toggle">{% trans 'Reports' %}<b class="caret"></b></a>
+		       		<ul class="dropdown-menu">
+		       			<li><a href="{% url 'oppia_user_list' %}">{% trans 'User Transcripts' %}</a></li>
+		       			<li><a href="{% url 'oppia_final_quiz_scores' %}">{% trans 'Final Quiz Scores' %}</a></li>
+		       			<li><a href="{% url 'oppia_quiz_summary' %}">{% trans 'Quiz Summary' %}</a></li>
+		       			<li><a href="{% url 'oppia_learning_center_access' %}">{% trans 'Learning Center Access' %}</a></li>
+		       			<li><a href="{% url 'oppia_learning_summary' %}">{% trans 'Learning Summary' %}</a></li>
+		       			<li><a href="{% url 'oppia_survey_results' %}">{% trans 'Survey Report' %}</a></li>
+		       			{% if user.is_superuser %}
+		       				<li><a href="{% url 'oppia_user_per_school_list' %}">{% trans 'Users Per School' %}</a></li>
+		       			 {% endif %}
+		       		</ul>
+					</li>
+		       {% endif %}
 		       {% if user.is_superuser %}
 		       		<li class="dropdown"><a href="#" data-toggle="dropdown" class="dropdown-toggle">{% trans 'Admin' %}<b class="caret"></b></a>
 		       		<ul class="dropdown-menu">
-		       			<li><a href="{% url 'profile_upload' %}">{% trans 'Upload users' %}</a></li>
+		       			<li><a href="{% url 'profile_upload' %}">{% trans 'Bulk Users Upload' %}</a></li>
+		       			<li><a href="{% url 'profile_upload_school' %}">{% trans 'Bulk School Codes Upload' %}</a></li>
 		       			<li><a href="{% url 'admin:index' %}">{% trans 'Django Admin' %}</a></li>
+		       			<li><a href="{% url 'profile_school_code' %}">{% trans 'School Codes' %}</a></li>
+		       			<li><a href="{% url 'profile_program' %}">{% trans 'Add School Program' %}</a></li>
 		       		</ul>
 					</li>
 		       {% endif %}
@@ -43,6 +61,7 @@
 		       {% if user.is_authenticated %}
 		       		<li class="dropdown"><a href="#" data-toggle="dropdown" class="dropdown-toggle">{% trans 'My Oppia' %}<b class="caret"></b></a>
 		       		<ul class="dropdown-menu">
+		       			<li><a href="{% url 'oppia_about' %}">{% trans 'About' %}</a></li>
 		       			<li><a href="{% url 'profile_user_activity'  user.id %}">{% trans 'Scorecard' %}</a></li>
 		            	<li><a href="{% url 'profile_edit' %}">{% trans 'Edit Profile' %}</a></li>
 		            	<li><a href="{% url 'django.contrib.auth.views.logout' %}">{% trans 'Logout' %}</a></li>

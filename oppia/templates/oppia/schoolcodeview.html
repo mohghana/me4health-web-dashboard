@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block extra_head_title %}
+	{{ title }}
+{% endblock extra_head_title %}
+
+{% block content %}
+
+<h2>{{ title }}</h2>
+
+{% crispy form %}
+
+<table class="table table-striped-expandable" style="padding-top:20px" id="schools">
+<thead>
+     <tr>
+        <th>School Name</th>
+        <th>Code</th>
+        <th>Region</th>
+        <th>School Type</th>
+       
+    </tr>
+</thead>
+   <tbody>
+    {% for item in codes_list %}
+    <tr> 
+        <td>{{ item.school_name }}</td>
+        <td>{{ item.school_code }}</td>
+        <td>{{ item.region }}</td>
+        <td>{{ item.school_type }}</td>
+       
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<script type="text/javascript">
+      $(document).ready(function(){
+   var table= $('#schools').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
+{% endblock %}

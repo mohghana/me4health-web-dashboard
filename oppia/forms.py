@@ -12,14 +12,13 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.bootstrap import FieldWithButtons
 from crispy_forms.layout import Button, Layout, Fieldset, ButtonHolder, Submit, Div, HTML, Row
 
-from oppia.models import Schedule
+from oppia.models import Schedule,Tag, SchoolCode
 
 class UploadCourseStep1Form(forms.Form):
     course_file = forms.FileField(
                 help_text=_('Max size %(size)d Mb') % {'size':int(math.floor(settings.OPPIA_MAX_UPLOAD_SIZE / 1024 / 1024))},
                 required=True,
                 error_messages={'required': _('Please select a file to upload')},)
-    
     def __init__(self, *args, **kwargs):
         super(UploadCourseStep1Form, self).__init__(*args, **kwargs)
         self.helper = FormHelper()
@@ -71,7 +70,7 @@ class UploadCourseStep2Form(forms.Form):
                    css_class='col-lg-offset-2 col-lg-4',
                 ),
             )  
-        
+       
 class ScheduleForm(forms.ModelForm):
     class Meta:
         model = Schedule
@@ -104,7 +103,7 @@ class ActivityScheduleForm(forms.Form):
         return cleaned_data
     
 class CohortForm(forms.Form):
-    description = forms.CharField(required=True)
+    description = forms.ModelChoiceField(queryset=SchoolCode.objects.all(),widget=forms.Select(),required=True)
     teachers = forms.CharField(widget=forms.Textarea(), 
                                required=False,
                                help_text=_("A comma separated list of usernames"),)
@@ -200,6 +199,29 @@ class DateRangeForm(forms.Form):
         # check start date before end date
         if start_date > end_date:
             raise forms.ValidationError("Start date must be before the end date.")
+        
+        return cleaned_data
+
+class UserRoleForm(forms.Form):
+    CHOICES = (('All','All'),
+                      ('Tutor','Tutor'),
+                      ('Student','Student'),
+                      ('Guest','Guest'),)
+    role = forms.ChoiceField(choices=CHOICES,widget=forms.Select(),required=False)
+   
+    
+    def __init__(self, *args, **kwargs):
+        super(UserRoleForm, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.layout = Layout(
+                Row(
+                    FieldWithButtons('role',Submit('submit', _(u'Go'), css_class='btn btn-default'),css_class='form-group'),
+                )
+            )  
+            
+    def clean(self):
+        cleaned_data = super(UserRoleForm, self).clean()
+        role = cleaned_data.get("role")
         
         return cleaned_data
     

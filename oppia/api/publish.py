@@ -23,7 +23,7 @@ def publish_view(request):
     for r in required:
         if r not in request.POST:
             print r + " not found"
-            return HttpResponse(status=400)
+            return HttpResponse(status=201)
    
     
     if 'course_file' not in request.FILES:
@@ -35,7 +35,7 @@ def publish_view(request):
     password = request.POST['password']
     user = authenticate(username=username, password=password)
     if user is None or not user.is_active:
-        return HttpResponse(status=401)
+        return HttpResponse(status=200)
      
     # check user has permissions to publish course
     if settings.OPPIA_STAFF_ONLY_UPLOAD is True and not user.is_staff and user.userprofile.can_upload is False:

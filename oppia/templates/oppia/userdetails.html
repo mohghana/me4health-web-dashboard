@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load display_functions %}
+
+{% block extra_head_title %}
+    {{ view_user.first_name }} {{ view_user.last_name }}
+{% endblock extra_head_title %}
+
+{% block content %}
+<div id="body">
+<h2>{{ title }}</h2>
+
+<h2 style="color:#77A240 ">{{ view_user.first_name }} {{ view_user.last_name }}</h2>
+<button id="pdf">Export to PDF</button>
+<table class="table">
+    <tr>
+        <td><strong>Role</strong></td>
+        <td>{{ profile.status}}</td>
+    </tr>  
+    <tr>
+        <td><strong>User Status</strong></td>
+         {% if view_user.is_active == 1 %}
+        <td>
+        {{"ACTIVE"}}
+        </td>
+        {% else %}
+        <td>
+        {{"INACTIVE"}}
+        </td>
+        {% endif %}
+    </tr> 
+    <tr>
+        <td><strong>Phone Number</strong></td>
+        <td>{{ profile.phone_number}}</td>
+    </tr>
+    <tr>
+        <td><strong>School</strong></td>
+        <td>{{ profile.school_code}}</td>
+    </tr>
+    <tr>
+        <td><strong>Program</strong></td>
+        <td>{{ profile.program}}</td>
+    </tr>
+    <tr>
+        <td><strong>Username</strong></td>
+        <td>{{ view_user.username}}</td>
+    </tr>
+    <tr>
+        <td><strong>Latest Version</strong></td>
+        <td>{{ version.agent}}</td>
+    </tr>
+    <tr>
+        <td><strong>Device</strong></td>
+        <td>{{ device.agent}}</td>
+    </tr>
+</table>
+
+
+<h3>{% trans 'Courses Summary' %}</h3>
+{% if courses %}
+    <div class="table-responsive">
+         <table class="table table-striped" id="courses">
+            <thead>
+                <tr>
+                  <th>{% trans 'Course' %}</th>
+                  <th>{% trans 'Pre-test Score' %}</th>
+                  <th>{% trans 'Activities Completed' %}</th>
+                  <th>{% trans 'Quizzes Completed' %}</th>
+                  <th>{% trans 'Points' %}</th>
+                  <th>{% trans 'Badges' %}</th>
+                  <th>{% trans 'Percentage Complete' %}</th>
+                </tr>
+              </thead>
+             <tbody>
+                {% for c in courses %}
+                    <tr>
+                        <td><a href="{% url 'profile_user_course_activity' view_user.id c.course.id%}">{{ c.course.title|title_lang:LANGUAGE_CODE }}</a></td>
+                        <td>
+                            {% if c.pretest_score %}
+                                {{ c.pretest_score }}%
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td>{{ c.no_activities_completed }}/{{ c.course.get_no_activities }}</td>
+                        <td>{{ c.no_quizzes_completed }}/{{ c.course.get_no_quizzes }}</td>
+                        <td>{{ c.no_points }}</td>
+                        <td>
+                            {% if c.no_badges > 0 %}
+                                <span class="badges"
+                                    title="{% trans 'Badge' %}"><img
+                                    src="{{ STATIC_URL }}oppia/images/badge.png"
+                                    alt="{% trans 'Badge' %}" /></span>
+                            {% else %}
+                                &nbsp;
+                            {% endif %}
+                        </td>
+                        <td>{{c.percentage_complete}}{{"%"}}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+  <h3>{% trans 'Quizzes' %}</h3>
+<div class="table-responsive">
+    <table class="table table-striped" id="quizzes">
+        <thead>
+           <tr>
+             <th>{% trans 'Course' %}</th>
+             <th>{% trans 'Quiz' %}</th>
+             <th>{% trans 'No attempts' %}</th>
+             <th>{% trans 'Max Score' %}</th>
+             <th>{% trans 'Min Score' %}</th>
+             <th>{% trans 'First Score' %}</th>
+             <th>{% trans 'Latest Score' %}</th>
+             <th>{% trans 'Average Score' %}</th>
+           </tr>
+         </thead>
+        <tbody>
+        {% for q in quizzes %}
+            <tr>
+                <td>{{ q.section|index:0 }}</td>
+                <td>{{ q.quiz.title|title_lang:LANGUAGE_CODE }} ({{ q.quiz.section.title|title_lang:LANGUAGE_CODE }})</td>
+                <td>{{ q.no_attempts }}</td>
+                <td>{% if q.max_score %}{{ q.max_score|floatformat:1 }}%{% else %}--{% endif %}</td>
+                <td>{% if q.min_score %}{{ q.min_score|floatformat:1 }}%{% else %}--{% endif %}</td>
+                <td>{% if q.first_score %}{{ q.first_score|floatformat:1 }}%{% else %}--{% endif %}</td>
+                <td>{% if q.latest_score %}{{ q.latest_score|floatformat:1 }}%{% else %}--{% endif %}</td>
+                <td>{% if q.avg_score %}{{ q.avg_score|floatformat:1 }}%{% else %}--{% endif %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</div>
+<script type="text/javascript">
+ $( document ).ready(function() {
+      $("#pdf").click(function () {
+      var doc = new jsPDF();
+      var specialElementHandlers = {
+            '#editor': function(element, renderer){
+                return true;
+    }
+};
+    doc.fromHTML($('#body').get(0), 15, 15, {
+    'width': 170, 
+    'elementHandlers': specialElementHandlers
+});
+
+});
+});
+</script>
+{% else %}
+    {% blocktrans %}<p>Not participated in any courses.</p>{% endblocktrans %}
+{% endif %}
+
+
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load display_functions %}
+{% load crispy_forms_tags %}
+{% block extra_head_title %}
+	{% trans 'Final Quiz Scores' %}
+{% endblock extra_head_title %}
+{% block extra_body %}
+	onload="setUpDatePicker();"
+{% endblock extra_body %}
+
+
+{% block extra_scripts %}
+	<script type="text/javascript">
+	{% include "oppia/includes/init-date-picker-js.html" %}
+</script>
+{% endblock extra_scripts %}
+{% block content %}
+
+
+<h3>{{title}}</h3>
+{% trans 'Filter by Date: ' %}
+{% crispy form %}
+<!--<div class="col-md-12" style="padding-bottom: 100px">
+<form method="post" action="{% url 'oppia_filter_final_quiz_scores' %}">
+{% csrf_token %}
+<div class="col-md-12">
+	<div class="col-md-4"><label>Start Date: </label><input type="date" class="form-control" name="start_date" id="start_date" /></div>
+	<div class="col-md-4"><label>End Date: </label><input type="date" class="form-control"  name="end_date" id="end_date" /></div>
+
+</div>
+<div class="col-md-4"><button class="btn btn-primary" type="submit">Search</button></div>
+</div>
+	</form>-->
+	<div class="table-responsive" style="padding-top: 40px">
+         <table class="table table-striped" id="courses">
+         	<thead>
+                <tr>
+                  <th>{% trans 'Student' %}</th>
+                  <th>{% trans 'Course' %}</th>
+                  <th>{% trans 'Quiz Type' %}</th>
+                  <th>{% trans 'Status' %}</th>
+                  <th>{% trans 'User Status' %}</th>
+                  <th>{% trans 'School' %}</th>
+                  <th>{% trans 'Attempts' %}</th>
+                  <th>{% trans 'Final Score' %}</th> 
+                  <th>{% trans 'Date' %}</th>
+                </tr>
+              </thead>
+             <tbody>
+
+				{% for c in data %}
+					<tr>
+						<td>{{c.tracker.user.first_name}} {{c.tracker.user.last_name}}</td>
+						<td>{{c.tracker.course.title|title_lang:LANGUAGE_CODE }}</td>
+						<td>{{c.tracker.activity_title|title_lang:LANGUAGE_CODE }}</td>
+						<td>{{c.tracker.user.userprofile.status}}</td>
+						 {% if c.tracker.user.is_active == 1 %}
+        					<td>{{"ACTIVE"}}</td>
+        				 {% else %}
+        					<td>{{"INACTIVE"}}</td>
+        				{% endif %}
+						<td>{{c.tracker.user.userprofile.school_code}}</td>
+						<td>{{c.attempts}}</td>
+						<td>{{c.score}}</td>
+						<td>{{c.tracker.tracker_date}}</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+ 		</table>
+	</div>
+	
+
+<script type="text/javascript">
+     $("#export").click(function () {
+      
+     $('#courses').tableExport({
+                    type:'excel',
+                    tableName:'courses',
+                    escape:'false',
+                    htmlContent:'false',
+                    consoleLog:'true'
+                });
+
+});
+      $(document).ready(function(){
+   var table= $('#courses').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
+
+
+{% endblock %}

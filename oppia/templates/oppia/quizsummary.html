@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load display_functions %}
+{% load crispy_forms_tags %}
+
+{% block extra_head_title %}
+	{% trans 'Quiz Summary' %}
+{% endblock extra_head_title %}
+
+{% block content %}
+
+<h3>{{title}}</h3>
+	<div class="table-responsive">
+         <table class="table table-striped" id="courses">
+         	<thead>
+                <tr>
+                  <th>{% trans 'Course' %}</th>
+                  <th>{% trans 'Topic' %}</th>
+                  <th>{% trans 'Quiz Type' %}</th>
+                  <th>{% trans 'No of Users' %}</th>
+                  <th>{% trans 'Average Score' %}</th>
+                  <th>{% trans 'Attempts' %}</th>
+                 
+                </tr>
+              </thead>
+             <tbody>
+
+				{% for c in data%}
+    	<tr>
+            <td>{{c.course|title_lang:LANGUAGE_CODE }}</td>
+						<td>{{c.tracker.section_title|title_lang:LANGUAGE_CODE }}</td>
+						<td>{{c.tracker.activity_title|title_lang:LANGUAGE_CODE }}</td>
+            <td>{{c.tracker.no_users}}</td>
+            {% for q in c.quiz%}
+              <td>{{q.score_avg}}</td>
+              <td>{{q.attempts}}</td>
+              {% empty %}
+              <td>{{"0"}}</td>
+              <td>{{"0"}}</td>
+            
+              
+            
+
+						{% endfor %}
+					</tr>
+				{% endfor %}
+			</tbody>
+ 		</table>
+	</div>
+	
+
+<script type="text/javascript">
+     $("#export").click(function () {
+      
+     $('#courses').tableExport({
+                    type:'excel',
+                    tableName:'courses',
+                    escape:'false',
+                    htmlContent:'false',
+                    consoleLog:'true'
+                });
+
+});
+      $(document).ready(function(){
+   var table= $('#courses').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
+});
+</script>
+
+
+{% endblock %}
