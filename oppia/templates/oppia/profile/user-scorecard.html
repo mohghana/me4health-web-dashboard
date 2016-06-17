@@ -96,19 +96,18 @@
 			</tbody>
  		</table>
 	</div>
-	<div> <button id="export" class="btn btn-primary">Export <i class="fa fa-file-excel-o"></i></button></div>
 
 <script type="text/javascript">
-     $("#export").click(function () {
-      
-     $('#courses').tableExport({
-                    type:'excel',
-                    tableName:'courses',
-                    escape:'false',
-                    htmlContent:'false',
-                    consoleLog:'true'
-                });
-
+      $(document).ready(function(){
+   var table= $('#courses').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
 });
 </script>
 {% else %}

@@ -33,24 +33,18 @@
  			</tbody>
  		</table>
 	</div>
-  <div> <button id="export" class="btn btn-primary">Export</button></div>
 
 <script type="text/javascript">
-     $("#export").click(function () {
-      
-     $('#leaderboard').tableExport({
-                    separator: ',',
-                    type:'excel',
-                    tableName:'leaderboard',
-                    escape:'false',
-                    htmlContent:'false',
-                    consoleLog:'true',
-                    ignoreColumn: [2],
-                });
-
-});
-        $(document).ready(function(){
-    $('#leaderboard').DataTable();
+     $(document).ready(function(){
+   var table= $('#leaderboard').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
 });
 </script>
 {% endif %}

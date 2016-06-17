@@ -8,6 +8,8 @@
 {% block content %}
 
 <h2>{{ title }}</h2>
+{% trans 'Filter by User Role: ' %}
+{% crispy form %}
 <table class="table table-striped-expandable" id="userTable">
 <thead>
     <tr>
@@ -23,7 +25,7 @@
 <tbody>
     {% for item in school_list %}
     <tr> 
-        <td><a href="{% url 'oppia_users_registered' item.school_code %}">{{ item.user.first_name }} {{ item.user.last_name }}</a></td>
+        <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
         <td>{{ item.phone_number }}</td>
         <td>{{ item.school_code }}</td>
         <td>{{ item.year_group }}</td>
@@ -43,8 +45,10 @@
 </tbody>
 </table>
 
+
+
 <script type="text/javascript">
-     $(document).ready(function(){
+$(document).ready(function(){
    var table= $('#userTable').DataTable(
         {
             dom: 'Bfrtip',
@@ -55,5 +59,6 @@
     table.buttons().container()
         .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
 });
+
 </script>
 {% endblock %}

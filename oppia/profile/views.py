@@ -371,7 +371,7 @@ def user_activity(request, user_id):
                               'profile':profile,
                               'version':version,
                               'device':device,
-                               'courses': courses, 
+                              'courses': courses, 
                                'activity_graph_data': activity }, 
                               context_instance=RequestContext(request))
 

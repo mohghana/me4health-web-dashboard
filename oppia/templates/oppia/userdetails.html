@@ -11,8 +11,9 @@
 <h2>{{ title }}</h2>
 
 <h2 style="color:#77A240 ">{{ view_user.first_name }} {{ view_user.last_name }}</h2>
-<button id="pdf">Export to PDF</button>
-<table class="table">
+<div style="float:right">
+      <button class="btn btn-default" onclick="window.print();"><i class="fa fa-print"></i> Export to PDF</button>
+</div><table class="table">
     <tr>
         <td><strong>Role</strong></td>
         <td>{{ profile.status}}</td>
@@ -119,7 +120,7 @@
         <tbody>
         {% for q in quizzes %}
             <tr>
-                <td>{{ q.section|index:0 }}</td>
+                <td>{{q.course_value.title|title_lang:LANGUAGE_CODE }}</td>
                 <td>{{ q.quiz.title|title_lang:LANGUAGE_CODE }} ({{ q.quiz.section.title|title_lang:LANGUAGE_CODE }})</td>
                 <td>{{ q.no_attempts }}</td>
                 <td>{% if q.max_score %}{{ q.max_score|floatformat:1 }}%{% else %}--{% endif %}</td>

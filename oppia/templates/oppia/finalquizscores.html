@@ -62,7 +62,7 @@
         				{% endif %}
 						<td>{{c.tracker.user.userprofile.school_code}}</td>
 						<td>{{c.attempts}}</td>
-						<td>{{c.score}}</td>
+						<td>{{c.score|floatformat:1}}</td>
 						<td>{{c.tracker.tracker_date}}</td>
 					</tr>
 				{% endfor %}

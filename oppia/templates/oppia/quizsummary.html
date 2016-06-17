@@ -32,7 +32,7 @@
 						<td>{{c.tracker.activity_title|title_lang:LANGUAGE_CODE }}</td>
             <td>{{c.tracker.no_users}}</td>
             {% for q in c.quiz%}
-              <td>{{q.score_avg}}</td>
+              <td>{{q.score_avg|floatformat:1}}</td>
               <td>{{q.attempts}}</td>
               {% empty %}
               <td>{{"0"}}</td>

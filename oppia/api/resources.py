@@ -61,11 +61,16 @@ class UserResource(ModelResource):
     metadata = fields.CharField(readonly=True)
     course_points = fields.CharField(readonly=True)
     survey_status = fields.CharField(readonly=True)
+    school_code = fields.CharField(readonly=True)
+    status = fields.CharField(readonly=True)
+    year_group = fields.CharField(readonly=True)
+    program = fields.CharField(readonly=True)
+    home_town = fields.CharField(readonly=True)
     
     class Meta:
         queryset = User.objects.all()
         resource_name = 'user'
-        fields = ['first_name', 'last_name', 'last_login','username', 'points','badges','survey_status']
+        fields = ['first_name', 'last_name', 'email','last_login','username', 'points','badges','survey_status','school_code','status','year_group','program','home_town']
         allowed_methods = ['post']
         authentication = Authentication()
         authorization = Authorization()
@@ -128,6 +133,22 @@ class UserResource(ModelResource):
     def dehydrate_survey_status(self,bundle):
         survey_status = list(UserProfile.objects.filter(user_id=bundle.request.user.id).values('survey_status'))
         return survey_status
+    def dehydrate_school_code(self,bundle):
+        school_code = list(UserProfile.objects.filter(user_id=bundle.request.user.id).values('school_code'))
+        return school_code
+    def dehydrate_status(self,bundle):
+        status = list(UserProfile.objects.filter(user_id=bundle.request.user.id).values('status'))
+        return status
+    def dehydrate_year_group(self,bundle):
+        year_group = list(UserProfile.objects.filter(user_id=bundle.request.user.id).values('year_group'))
+        return year_group
+    def dehydrate_program(self,bundle):
+        program = list(UserProfile.objects.filter(user_id=bundle.request.user.id).values('program'))
+        return program
+    def dehydrate_home_town(self,bundle):
+        home_town = list(UserProfile.objects.filter(user_id=bundle.request.user.id).values('home_town'))
+        return home_town
+
 
 class RegisterResource(ModelResource):
     ''' 
@@ -151,7 +172,8 @@ class RegisterResource(ModelResource):
     def obj_create(self, bundle, **kwargs):
         if not settings.OPPIA_ALLOW_SELF_REGISTRATION:
             raise BadRequest(_(u'Registration is disabled on this server.'))
-        required = ['username','password','passwordagain', 'email', 'firstname', 'lastname']
+
+        required = ['username','password','passwordagain', 'email', 'firstname', 'status','gender']
         for r in required:
             try:
                 bundle.data[r]
@@ -168,7 +190,8 @@ class RegisterResource(ModelResource):
                 'year_group': bundle.data['year_group'],
                 'home_town': bundle.data['home_town'],
                 'program': bundle.data['program'],
-                'school_code': bundle.data['school_code'],}
+                'school_code': bundle.data['school_code'],
+                'gender':bundle.data['gender']}
         rf = RegisterForm(data)
         if not rf.is_valid():
             str = ""
@@ -180,12 +203,25 @@ class RegisterResource(ModelResource):
             username = bundle.data['username']
             password = bundle.data['password']
             email = bundle.data['email']
+
             first_name = bundle.data['firstname']
             last_name = bundle.data['lastname']
         school_code_existing = SchoolCode.objects.filter(
                        school_code=bundle.data['school_code'],).exists()
         if not school_code_existing:
             raise BadRequest(_(u'This school code does not exist!'))
+        if bundle.data['status']=="Select":
+            raise BadRequest(_(u'Status is required'))
+        if bundle.data['year_group']=="Select":
+            raise BadRequest(_(u'Year group is required'))
+        if bundle.data['program']=="Select":
+            raise BadRequest(_(u'Program is required'))
+        if bundle.data['program']=="":
+            raise BadRequest(_(u'Program is required'))
+        if bundle.data['status']=="":
+            raise BadRequest(_(u'Status is required'))
+        if bundle.data['year_group']=="":
+            raise BadRequest(_(u'Year group is required'))
         try:
             bundle.obj = User.objects.create_user(username, email, password)
             bundle.obj.first_name = first_name
@@ -265,10 +301,7 @@ class RegisterResource(ModelResource):
     def obj_create(self, bundle, **kwargs):
         if not settings.OPPIA_ALLOW_SELF_REGISTRATION:
             raise BadRequest(_(u'Registration is disabled on this server.'))
-        if bundle.data['status']!= "Guest":
-            required = ['username','password','passwordagain', 'email', 'firstname', 'lastname','school_code','program','year_group','status']
-        else:
-            required = ['username','password','passwordagain', 'email', 'firstname', 'lastname']
+        required = ['username','password','passwordagain', 'email', 'firstname', 'lastname','status','gender']
         for r in required:
             try:
                 bundle.data[r]
@@ -301,8 +334,21 @@ class RegisterResource(ModelResource):
         last_name = bundle.data['lastname']
         school_code_existing = SchoolCode.objects.filter(
                        school_code=bundle.data['school_code'],).exists()
+
         if not school_code_existing and bundle.data['status'] != "Guest":
             raise BadRequest(_(u'This school code does not exist!'))
+        if bundle.data['status']=="Select":
+            raise BadRequest(_(u'Status is required'))
+        if bundle.data['year_group']=="Select":
+            raise BadRequest(_(u'Year group is required'))
+        if bundle.data['program']=="Select":
+            raise BadRequest(_(u'Program is required'))
+        if bundle.data['program']=="":
+            raise BadRequest(_(u'Program is required'))
+        if bundle.data['status']=="":
+            raise BadRequest(_(u'Status is required'))
+        if bundle.data['year_group']=="":
+            raise BadRequest(_(u'Year group is required'))
         try:
             bundle.obj = User.objects.create_user(username, email, password)
             bundle.obj.first_name = first_name

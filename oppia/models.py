@@ -291,7 +291,7 @@ class SchoolCode(models.Model):
         verbose_name_plural = _('School Codes')
         
     def __unicode__(self):
-        return self.school_name
+        return self.school_code
 
 class Program(models.Model):
     program_name = models.TextField(blank=False)
@@ -623,7 +623,8 @@ class Tracker(models.Model):
         
  
 class Cohort(models.Model): 
-    description = models.CharField(max_length=100)
+    description = models.CharField(max_length=100,null=True,blank=True)
+    school=models.ForeignKey(SchoolCode)
     start_date = models.DateTimeField(default=timezone.now)
     end_date = models.DateTimeField(default=timezone.now)
     schedule = models.ForeignKey(Schedule,null=True, blank=True, default=None, on_delete=models.SET_NULL)
@@ -633,7 +634,7 @@ class Cohort(models.Model):
         verbose_name_plural = _('Cohorts')
         
     def __unicode__(self):
-        return self.description
+        return self.school
     
     def no_student_members(self):
         return Participant.objects.filter(cohort=self, role=Participant.STUDENT).count()

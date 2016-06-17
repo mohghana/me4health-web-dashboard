@@ -104,21 +104,34 @@ class ActivityScheduleForm(forms.Form):
     
 class CohortForm(forms.Form):
     description = forms.ModelChoiceField(queryset=SchoolCode.objects.all(),widget=forms.Select(),required=True)
-    teachers = forms.CharField(widget=forms.Textarea(), 
-                               required=False,
-                               help_text=_("A comma separated list of usernames"),)
-    students = forms.CharField(widget=forms.Textarea(),
-                               required=True,
-                               help_text=_("A comma separated list of usernames"),)
+
+    '''teachers = forms.CharField(widget=forms.Textarea(), 
+                            required=False,
+                            help_text=_("A comma separated list of usernames"),)
+    teachers = forms.FileField(
+                required=True,
+                error_messages={'required': _('Please select a file to upload')},
+                help_text=_("A CSV file of Tutors usernames(phone numbers)"))'''
+    ''' students = forms.CharField(widget=forms.Textarea(),
+                              required=False,
+                              help_text=_("A comma separated list of usernames"),)
+    students = forms.FileField(
+                required=True,
+                error_messages={'required': _('Please select a file to upload')},
+                help_text=_("A CSV file of students usernames(phone numbers)"))'''
     start_date = forms.CharField(required=True,
                                      error_messages={'required': _('Please enter a valid date'),
                                                      'invalid':_('Please enter a valid date')},)
     end_date = forms.CharField(required=True,
                                     error_messages={'required': _('Please enter a valid date'),
                                                     'invalid':_('Please enter a valid date')},)
-    courses = forms.CharField(widget=forms.Textarea(), 
-                              required=False,
-                              help_text=_("A comma separated list of course codes"),)
+    ''' courses = forms.CharField(widget=forms.Textarea(), 
+                            required=False,
+                           help_text=_("A comma separated list of course codes"),)
+    courses = forms.FileField(
+                required=True,
+                error_messages={'required': _('Please select a file to upload')},
+                help_text=_("A CSV file of course codes"))'''
     
     def __init__(self, *args, **kwargs):
         super(CohortForm, self).__init__(*args, **kwargs)
@@ -130,9 +143,9 @@ class CohortForm(forms.Form):
                 'description',
                 Div('start_date',css_class='date-picker-row'),
                 Div('end_date',css_class='date-picker-row'),
-                'courses',
-                'teachers',
-                'students',
+                #'courses',
+                #'teachers',
+                #'students',
                 Div(
                    Submit('submit', _(u'Save'), css_class='btn btn-default'),
                    css_class='col-lg-offset-2 col-lg-4',
@@ -222,8 +235,8 @@ class UserRoleForm(forms.Form):
     def clean(self):
         cleaned_data = super(UserRoleForm, self).clean()
         role = cleaned_data.get("role")
-        
         return cleaned_data
+
     
 class DateRangeIntervalForm(forms.Form):
     INTERVALS = (('days',_('days'),), ('months',_('months')),)

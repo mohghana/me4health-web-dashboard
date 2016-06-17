@@ -8,14 +8,14 @@
 
 {% block content %}
 
-<h2>{% trans 'Cohorts' %}</h2>
+<h2>{% trans 'Schools' %}</h2>
 
 {% if cohorts %}
 	<div class="table-responsive">
          <table class="table table-striped-expandable">
          	<thead>
                 <tr>
-                  <th>{% trans 'Cohort' %}</th>
+                  <th>{% trans 'School' %}</th>
                   <th>{% trans 'No Teachers' %}</th>
                   <th>{% trans 'No Students' %}</th>
                   <th>{% trans 'Courses' %}</th>
@@ -25,7 +25,7 @@
               <tbody>
 	{% for cohort in cohorts %}
 		<tr>
-			<td><a href="{% url 'oppia_cohort_view' cohort.id %}">{{ cohort.description }}</a></td>
+			<td><a href="{% url 'oppia_cohort_view' cohort.id %}">{{ cohort.school }}</a></td>
 			<td>{{ cohort.no_teacher_members }}</td>
 			<td>{{ cohort.no_student_members }}</td>
 			<td>

@@ -29,8 +29,9 @@
                 <tr>
                   <th>{% trans 'Name' %}</th>
                   <th>{% trans 'Role' %}</th>
-                  <th>{% trans 'Status' %}</th>
                   <th>{% trans 'Year Group' %}</th>
+                  <th>{% trans 'School' %}</th>
+                  <th>{% trans 'Status' %}</th>
                   <th>{% trans 'Timestamp' %}</th>
                   <th>{% trans 'Course' %}</th>
                   <th>{% trans 'Activity Status' %}</th>
@@ -46,6 +47,7 @@
             <td>{{c.tracker.user.first_name}} {{c.tracker.user.last_name}}</td>
             <td>{{c.profile.status}}</td>
             <td>{{c.profile.year_group}}</td>
+            <td>{{c.profile.school_code}}</td>
             {% if c.tracker.user.is_active == 1 %}
               <td>{{"ACTIVE"}}</td>
             {% else %}

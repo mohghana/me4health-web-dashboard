@@ -49,9 +49,16 @@
 	{% include "oppia/includes/page_navigator.html" %}
 {% endif %}
 <script type="text/javascript">
-	
      $(document).ready(function(){
-    $('#leaderboard').DataTable();
+   var table= $('#leaderboard').DataTable(
+        {
+            dom: 'Bfrtip',
+            buttons: [
+                'csv', 'excel', 'pdf', 'print' 
+                    ]
+        });
+    table.buttons().container()
+        .appendTo( '#example_wrapper .col-sm-6:eq(0)' );
 });
 </script>
 {% endblock %}

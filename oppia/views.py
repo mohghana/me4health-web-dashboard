@@ -1,4 +1,5 @@
 # oppia/views.py
+import csv
 import datetime
 import json
 import os
@@ -13,6 +14,8 @@ from django.conf import settings
 from django.contrib.auth import (authenticate, logout, views)
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator, InvalidPage, EmptyPage
+from django.contrib import messages 
+
 #from django.core.servers.basehttp import FileWrapper
 from wsgiref.util import FileWrapper
 from django.core.urlresolvers import reverse
@@ -24,7 +27,7 @@ from django.template import RequestContext
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
 
-from oppia.forms import UploadCourseStep1Form, UploadCourseStep2Form, ScheduleForm, DateRangeForm, DateRangeIntervalForm
+from oppia.forms import UploadCourseStep1Form, UploadCourseStep2Form, ScheduleForm, DateRangeForm, DateRangeIntervalForm,UserRoleForm
 from oppia.forms import ActivityScheduleForm, CohortForm
 from oppia.models import Course, Tracker, Tag, CourseTag, Schedule, CourseManager, CourseCohort, SchoolCode, BaselineSurvey, Section
 from oppia.models import ActivitySchedule, Activity, Cohort, Participant, Points, UserProfile
@@ -172,23 +175,29 @@ def courses_list_view(request):
                                'tag_list': tag_list}, 
                               context_instance=RequestContext(request))
 def users_list_view(request):
-  #if request.method == 'POST':
- #     form = UserRoleForm(request.POST)
-  #    if form.is_valid():
-   #       role = form.cleaned_data.get("role")  
-    #      user_list =UserProfile.objects.select_related('user').filter(status=role)
-     # else:   
-      #    user_list = UserProfile.objects.select_related('user')   
-
-  #else:
+    user_list=[]
     if request.user.is_superuser:
-      user_list = UserProfile.objects.select_related('user')  
+        user_list = UserProfile.objects.select_related('user')  
     else:
-      user_list = UserProfile.objects.select_related('user').filter(school_code=request.user.userprofile.school_code)
-  #    form = UserRoleForm(request.POST)  
+        user_list = UserProfile.objects.select_related('user').filter(school_code=request.user.userprofile.school_code)
+    if request.method == 'POST':
+        form = UserRoleForm(request.POST)
+        if form.is_valid():
+            role=form.cleaned_data.get("role")  
+            if request.user.is_superuser:
+                user_list = UserProfile.objects.select_related('user').filter(status=role)  
+            else:
+                user_list = UserProfile.objects.select_related('user').filter(school_code=request.user.userprofile.school_code,status=role)
+        else:
+            if request.user.is_superuser:
+                user_list = UserProfile.objects.select_related('user')  
+            else:
+                user_list = UserProfile.objects.select_related('user').filter(school_code=request.user.userprofile.school_code)
+    else:
+        form = UserRoleForm()
     return render_to_response('oppia/userreport.html',
                               {'user_list': user_list,
-                             #   'form':form,
+                               'form':form,
                               'title':"Select User to view transcript"}, 
                               context_instance=RequestContext(request))
 def user_details_view(request,user_id):
@@ -214,6 +223,7 @@ def user_details_view(request,user_id):
     courses = []
     quizzes = []
     for course in all_courses:
+
         completed=course.get_activities_completed(course,view_user)+course.get_no_quizzes_completed(course,view_user)
         total=course.get_no_activities()+course.get_no_quizzes()
         percentage=(float(completed)/100)*total
@@ -226,14 +236,11 @@ def user_details_view(request,user_id):
                 'no_badges': course.get_badges(course,view_user),
                 'percentage_complete':float("{0:.6f}".format(percentage)),}
         courses.append(data)
-
-        act_quizzes = Activity.objects.filter(section__course=course,type=Activity.QUIZ).order_by('section__order','order')
-       
+        course_value = can_view_course(request, course.id)
+        act_quizzes = Activity.objects.filter(section__course=course_value,type=Activity.QUIZ).order_by('section__order','order')
         for aq in act_quizzes:
             quiz = Quiz.objects.filter(quizprops__value=aq.digest, quizprops__name="digest")
             attempts = QuizAttempt.objects.filter(quiz=quiz, user=view_user)
-            section_courseid=Section.objects.raw('select c.title, s.id, c.id from oppia_section s, oppia_course c where s.course_id=c.id and s.id='+str(aq.section_id))
-        #section_courseid=Section.objects.filter(pk=aq.section_id).select_related()
             if attempts.count() > 0:
                 max_score = 100*float(attempts.aggregate(max=Max('score'))['max']) / float(attempts[0].maxscore)
                 min_score = 100*float(attempts.aggregate(min=Min('score'))['min']) / float(attempts[0].maxscore)
@@ -249,16 +256,16 @@ def user_details_view(request,user_id):
                 first_score = None
                 latest_score = None
             
-                quiz = {'quiz': aq,
-                'section':list(section_courseid),
-                'no_attempts': attempts.count(),
-                'max_score': max_score,
-                'min_score': min_score,
-                'first_score': first_score,
-                'latest_score': latest_score,
-                'avg_score': avg_score,
-                 }
-                quizzes.append(quiz);
+            quiz = {'quiz': aq,
+                        'course_value':course_value,
+                        'no_attempts': attempts.count(),
+                        'max_score': max_score,
+                        'min_score': min_score,
+                        'first_score': first_score,
+                        'latest_score': latest_score,
+                        'avg_score': avg_score,
+                  }
+            quizzes.append(quiz);
    
     return render_to_response('oppia/userdetails.html',
                               {'view_user': view_user,
@@ -322,6 +329,7 @@ def final_quiz_scores_view(request):
     return render_to_response('oppia/finalquizscores.html',
                               {'data': quizzes,
                                'form': form,
+                               #'users':users,
                               'title':"Final Quiz Scores"}, 
                               context_instance=RequestContext(request))
 def filter_final_quiz_scores_view(request):
@@ -433,8 +441,8 @@ def learning_summary_view(request):
     if request.user.is_superuser:
         acts = Activity.objects.filter(baseline=False).values_list('digest')
         downloads=Tracker.objects.filter(type='download', course_id__isnull=False).count()   
-        started=Tracker.objects.filter(completed=False,digest__in=acts).values_list('user_id').distinct().count()
-        completed=Tracker.objects.filter(completed=True,digest__in=acts).values_list('user_id').distinct().count()
+        started=Tracker.objects.filter(completed=False,type="page",digest__in=acts).values_list('user_id').distinct().count()
+        completed=Tracker.objects.filter(completed=True,type="page",digest__in=acts).values_list('user_id').distinct().count()
         quizzes=Tracker.objects.filter(digest__in=acts, type=Activity.QUIZ).values_list('user_id').distinct().count()
     else:
         acts = Activity.objects.filter(baseline=False).values_list('digest')
@@ -443,22 +451,30 @@ def learning_summary_view(request):
         completed=Tracker.objects.filter(completed=True,type="page",user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
         quizzes=Tracker.objects.filter(type=Activity.QUIZ, user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
     for c in courses:
-      if request.user.is_superuser:
-          started_modules=c.get_activities_started_all(c)
-          completed_modules=c.get_activities_completed_all(c)
-          no_quizzes=c.get_no_quizzes_all(c)
-      else:
-          started_modules=Tracker.objects.filter(course=c,type="page",completed=False,user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
-          completed_modules=Tracker.objects.filter(course=c,type="page",completed=True,user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
-          no_quizzes= Tracker.objects.filter(course=c,type="quiz",user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
-          no_downloads=Tracker.objects.filter(course=c, type='download',user__userprofile__school_code=request.user.userprofile.school_code).count()
-          data={'course':c,
+        if request.user.is_superuser:
+            started_modules=Tracker.objects.filter(course=c,type="page",completed=False).values_list('digest').distinct().count()
+            completed_modules=Tracker.objects.filter(course=c,type="page",completed=True).values_list('digest').distinct().count()
+            no_quizzes= Tracker.objects.filter(course=c,type="quiz").values_list('digest').distinct().count()
+            no_downloads=Tracker.objects.filter(course=c, type='download').count()
+            data={'course':c,
             'started_modules':started_modules,
             'completed_modules':completed_modules,
             'no_quizzes':no_quizzes,
             'no_downloads':no_downloads,
             }
-      access.append(data)
+            access.append(data)
+        else:
+            started_modules=Tracker.objects.filter(course=c,type="page",completed=False,user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
+            completed_modules=Tracker.objects.filter(course=c,type="page",completed=True,user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
+            no_quizzes= Tracker.objects.filter(course=c,type="quiz",user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
+            no_downloads=Tracker.objects.filter(course=c, type='download',user__userprofile__school_code=request.user.userprofile.school_code).count()
+            data={'course':c,
+            'started_modules':started_modules,
+            'completed_modules':completed_modules,
+            'no_quizzes':no_quizzes,
+            'no_downloads':no_downloads,
+            }
+            access.append(data)
     return render_to_response('oppia/learning-summary.html',
                               {'data': access,
                                 'downloads':downloads,
@@ -470,11 +486,12 @@ def learning_summary_view(request):
 def learning_summary_by_course_view(request, course_id):
     course=Course.objects.get(pk=course_id) 
     if request.user.is_superuser:
-        started_modules=Tracker.objects.raw('select *, count(t.user_id) as users from oppia_tracker t, oppia_userprofile up where  t.completed=0 and t.user_id=up.user_id, and up.school_code='+"'"+request.user.userprofile.school_code+"'"+' and t.course_id='+course_id+' and (t.type="page"or t.type="quiz") group by t.digest')
-        completed_modules=Tracker.objects.raw('select *, count(t.user_id) as users  from oppia_tracker t, oppia_userprofile up where  t.completed=1 and t.user_id=up.user_id, and up.school_code='+"'"+request.user.userprofile.school_code+"'"+'and t.course_id='+course_id+' and (t.type="page" or t.type="quiz") group by t.digest')
+        started_modules=Tracker.objects.raw('select *, count(t.user_id) as users from oppia_tracker t where  t.completed=0 and t.course_id='+course_id+' and (t.type="page") group by t.digest')
+        completed_modules=Tracker.objects.raw('select *, count(t.user_id) as users  from oppia_tracker t where  t.completed=1 and t.course_id='+course_id+' and (t.type="page") group by t.digest')
+        
     else:
-        started_modules=Tracker.objects.raw('select *, count(t.user_id) as users from oppia_tracker t where  t.completed=0 and t.course_id='+course_id+' and (t.type="page" or t.type="quiz") group by t.digest')
-        completed_modules=Tracker.objects.raw('select *, count(t.user_id) as users  from oppia_tracker t where  t.completed=1 and t.course_id='+course_id+' and (t.type="page" or t.type="quiz") group by t.digest')
+        started_modules=Tracker.objects.raw('select *, count(t.user_id) as users from oppia_tracker t, oppia_userprofile up where  t.completed=0 and t.user_id=up.user_id, and up.school_code='+"'"+request.user.userprofile.school_code+"'"+' and t.course_id='+course_id+' and (t.type="page") group by t.digest')
+        completed_modules=Tracker.objects.raw('select *, count(t.user_id) as users  from oppia_tracker t, oppia_userprofile up where  t.completed=1 and t.user_id=up.user_id, and up.school_code='+"'"+request.user.userprofile.school_code+"'"+'and t.course_id='+course_id+' and (t.type="page") group by t.digest')
 
     return render_to_response('oppia/learning-summary-course.html',
                               {'started_modules': started_modules,
@@ -482,15 +499,31 @@ def learning_summary_by_course_view(request, course_id):
                                 'course':course,}, 
                               context_instance=RequestContext(request))
 def report_schools_list_view(request):
-    school_list = UserProfile.objects.raw('select u.id,count(u.user_id) as c, s.school_name from oppia_userprofile u,oppia_schoolcode s where not u.school_code="-----" and u.school_code=s.school_code group by u.school_code')    
+    school_list = UserProfile.objects.raw('select u.id,count(u.user_id) as c, s.school_name from oppia_userprofile u,oppia_schoolcode s where not u.school_code="-----" and u.school_code=s.school_code group by u.school_code')
+
     return render_to_response('oppia/schools_per_user_report.html',
                               {'school_list': school_list,
                               'title':"Users Registered Per School"}, 
                               context_instance=RequestContext(request))
 def users_registered_per_school(request, school_code):
-    school_list =  UserProfile.objects.raw("select up.*,u.*, s.school_name from oppia_userprofile up,auth_user u,oppia_schoolcode s where not up.school_code='-----' and up.school_code=s.school_code and up.school_code='"+school_code+"' group by up.user_id") 
+    cohort_list=[]
+    school_list =  UserProfile.objects.raw("select up.*,u.*, s.school_name from oppia_userprofile up,auth_user u,oppia_schoolcode s where not up.school_code='-----' and up.school_code=s.school_code and up.school_code='"+school_code+"' group by up.user_id")
+    courses=Course.objects.all()
+    if request.method == 'POST':
+        form = UserRoleForm(request.POST)
+        if form.is_valid():
+            role=form.cleaned_data.get("role")  
+            school_list =  UserProfile.objects.raw("select up.*,u.*, s.school_name from oppia_userprofile up,auth_user u,oppia_schoolcode s where not up.school_code='-----' and up.school_code=s.school_code and up.status='"+role+"' and up.school_code='"+school_code+"' group by up.user_id") 
+        else:
+            school_list =  UserProfile.objects.raw("select up.*,u.*, s.school_name from oppia_userprofile up,auth_user u,oppia_schoolcode s where not up.school_code='-----' and up.school_code=s.school_code and up.school_code='"+school_code+"' group by up.user_id")
+    else:
+        form = UserRoleForm()
+        
+       
     return render_to_response('oppia/users_registered_per_school.html',
                               {'school_list': school_list,
+                              'form':form,
+                              'courses':courses,
                               'title':"Users Registered in "+school_code}, 
                               context_instance=RequestContext(request))
 def report_completed_module_view(request):
@@ -507,9 +540,10 @@ def report_started_module_view(request):
                               context_instance=RequestContext(request))
 def report_survey_results_view(request):
     if request.user.is_superuser: 
-      module_list = BaselineSurvey.objects.filter(user__userprofile__school_code=request.user.userprofile.school_code)    
+        module_list = BaselineSurvey.objects.all()
+      
     else:
-      module_list = BaselineSurvey.objects.all()    
+        module_list = BaselineSurvey.objects.raw('Select * from oppia_baselinesurvey b, oppia_userprofile up where b.user_id_id=up.user_id and up.school_code='+request.user.userprofile.school_code)
     return render_to_response('oppia/survey-results.html',
                               {'module_list': module_list,
                               'title':"Survey Results"}, 
@@ -622,7 +656,7 @@ def upload_step2(request, course_id):
 def recent_activity(request,course_id):
     #view_user = get_user(request, user_id)
     course, response = can_view_course_detail(request, course_id)
-    leaderboard = Points.get_leaderboard(10, course)
+    leaderboard = Points.get_leaderboard(0, course)
 
     if response is not None:
         return response
@@ -919,7 +953,77 @@ def cohort_list_view(request):
     return render_to_response('oppia/course/cohorts-list.html',
                               {'cohorts':cohorts,}, 
                               context_instance=RequestContext(request))
-  
+'''  
+def cohort_add(request):
+    if not can_add_cohort(request):
+        return HttpResponse('Unauthorized', status=401)   
+    
+    if request.method == 'POST':
+        form = CohortForm(request.POST,request.FILES)
+        if form.is_valid(): # All validation rules pass
+            request.FILES['courses'].open("rb")
+            request.FILES['students'].open("rb")
+            request.FILES['teachers'].open("rb")
+            course_csv = csv.DictReader(request.FILES['courses'].file)
+            student_csv = csv.DictReader(request.FILES['students'].file)
+            teacher_csv = csv.DictReader(request.FILES['teachers'].file)
+            required_fields = ['course_codes','tutors','students','courses']
+            cohort = Cohort()
+            cohort.start_date = form.cleaned_data.get("start_date")
+            cohort.end_date = form.cleaned_data.get("end_date")
+            cohort.description = form.cleaned_data.get("description")
+            cohort.save()
+            
+            #students = form.cleaned_data.get("students").strip().split(",")
+            #if len(students) > 0:
+            for s in student_csv:
+                try:
+                    if s['students'].strip().startswith("0"):
+                        student = User.objects.get(username=s['students'].strip())
+                    else:
+                        student = User.objects.get(username="0"+s['students'].strip())
+                        participant = Participant()
+                        participant.cohort = cohort
+                        participant.user = student
+                        participant.role = Participant.STUDENT
+                        participant.save()
+                except User.DoesNotExist:
+                    pass
+                    
+            #teachers = form.cleaned_data.get("teachers").strip().split(",")
+            #if len(teachers) > 0:
+            for t in teacher_csv:
+                try:
+                    if s['tutors'].strip().startswith("0"):
+                        teacher = User.objects.get(username=t['tutors'].strip())
+                    else:
+                        teacher = User.objects.get(username="0"+t['tutors'].strip())
+                        #teacher = User.objects.get(username__contains=t['tutors'].strip())
+                        participant = Participant()
+                        participant.cohort = cohort
+                        participant.user = teacher
+                        participant.role = Participant.TEACHER
+                        participant.save()
+                except User.DoesNotExist:
+                    pass
+             
+            #courses = form.cleaned_data.get("courses").strip().split(",")
+            #if len(courses) > 0:
+            for c in course_csv:
+                try:
+                    course = Course.objects.get(shortname=c['course_codes'].strip())
+                    CourseCohort(cohort=cohort, course=course).save()
+                except Course.DoesNotExist:
+                    pass
+                           
+            return HttpResponseRedirect('../') # Redirect after POST
+           
+    else:
+        form = CohortForm() # An unbound form
+
+    return render(request, 'oppia/cohort-form.html',{'form': form,})  
+'''
+'''
 def cohort_add(request):
     if not can_add_cohort(request):
         return HttpResponse('Unauthorized', status=401)   
@@ -959,21 +1063,84 @@ def cohort_add(request):
                     except User.DoesNotExist:
                         pass
              
-            courses = form.cleaned_data.get("courses").strip().split(",")
+            #courses = form.cleaned_data.get("courses").strip().split(",")
+            courses=Course.objects.get()
             if len(courses) > 0:
                 for c in courses:
                     try:
-                        course = Course.objects.get(shortname=c.strip())
-                        CourseCohort(cohort=cohort, course=course).save()
+                        #course = Course.objects.get(shortname=c.strip())
+                        CourseCohort(cohort=cohort, course=c).save()
                     except Course.DoesNotExist:
                         pass
                            
             return HttpResponseRedirect('../') # Redirect after POST
-           
+        else:
+            #If form is not valid, clean the groups data
+            form.data['teachers'] = None
+            form.data['courses'] = None
+            form.data['students'] = None
     else:
         form = CohortForm() # An unbound form
 
     return render(request, 'oppia/cohort-form.html',{'form': form,})  
+
+'''
+def cohort_add(request):
+    if not can_add_cohort(request):
+        return HttpResponse('Unauthorized', status=401)   
+    
+    if request.method == 'POST':
+        form = CohortForm(request.POST)
+        if form.is_valid(): # All validation rules pass
+            logging.warning('Watch out!') 
+            cohort = Cohort()
+            cohort.start_date = form.cleaned_data.get("start_date")
+            cohort.end_date = form.cleaned_data.get("end_date")
+            cohort.school = form.cleaned_data.get("description")
+            cohort.save()
+            
+            students=User.objects.filter(userprofile__school_code=form.cleaned_data.get("description"), userprofile__status="Student")
+            for s in students:
+                try:
+                    student = User.objects.get(username=s.username)
+                    participant = Participant()
+                    participant.cohort = cohort
+                    participant.user = student
+                    participant.role = Participant.STUDENT
+                    participant.save()
+                except User.DoesNotExist:
+                    raise Http404
+                    
+            teachers=User.objects.filter(userprofile__school_code=form.cleaned_data.get("description"),userprofile__status="Tutor")
+            for t in teachers:
+                try:
+                    teacher = User.objects.get(username=t.username)
+                    participant = Participant()
+                    participant.cohort = cohort
+                    participant.user = teacher
+                    participant.role = Participant.TEACHER
+                    participant.save()
+                except User.DoesNotExist:
+                    logging.warning('Watch out!') 
+             
+            courses=Course.objects.all()
+            for c in courses:
+                try:
+                    course = Course.objects.get(shortname=c.shortname)
+                    CourseCohort(cohort=cohort, course=course).save()
+                except Course.DoesNotExist:
+                     raise Http404
+                           
+            #return HttpResponseRedirect('../') # Redirect after POST
+        else:
+            #If form is not valid, clean the groups data
+            messages.error(request, "The form is invalid")
+            logging.warning('Watch out!') 
+    else:
+        form = CohortForm() # An unbound form
+
+    return render(request, 'oppia/cohort-form.html',{'form': form,})  
+
 
 def cohort_view(request,cohort_id):
     cohort, response = can_view_cohort(request,cohort_id)
@@ -1045,50 +1212,50 @@ def cohort_edit(request,cohort_id):
     if request.method == 'POST':
         form = CohortForm(request.POST)
         if form.is_valid(): 
-            cohort.description = form.cleaned_data.get("description").strip()
+            cohort.school = form.cleaned_data.get("description")
             cohort.start_date = form.cleaned_data.get("start_date")
             cohort.end_date = form.cleaned_data.get("end_date")
             cohort.save()
             
             Participant.objects.filter(cohort=cohort).delete()
             
-            students = form.cleaned_data.get("students").split(",")
-            if len(students) > 0:
-                for s in students:
-                    try:
-                        participant = Participant()
-                        participant.cohort = cohort
-                        participant.user = User.objects.get(username=s.strip())
-                        participant.role = Participant.STUDENT
-                        participant.save()
-                    except User.DoesNotExist:
-                        pass
-            teachers = form.cleaned_data.get("teachers").split(",")
-            if len(teachers) > 0:
-                for t in teachers:
-                    try:
-                        participant = Participant()
-                        participant.cohort = cohort
-                        participant.user = User.objects.get(username=t.strip())
-                        participant.role = Participant.TEACHER
-                        participant.save()
-                    except User.DoesNotExist:
-                        pass
+            students=User.objects.filter(userprofile__school_code=form.cleaned_data.get("description"), userprofile__status="Student")
+            #if len(students) > 0:
+            for s in students:
+                try:
+                    participant = Participant()
+                    participant.cohort = cohort
+                    participant.user = User.objects.get(username=s.username)
+                    participant.role = Participant.STUDENT
+                    participant.save()
+                except User.DoesNotExist:
+                    pass
+            teachers=User.objects.filter(userprofile__school_code=form.cleaned_data.get("description"),userprofile__status="Tutor")
+            #if len(teachers) > 0:
+            for t in teachers:
+                try:
+                    participant = Participant()
+                    participant.cohort = cohort
+                    participant.user = User.objects.get(username=t.username)
+                    participant.role = Participant.TEACHER
+                    participant.save()
+                except User.DoesNotExist:
+                    pass
              
             CourseCohort.objects.filter(cohort=cohort).delete()       
-            courses = form.cleaned_data.get("courses").strip().split(",")
-            if len(courses) > 0:
-                for c in courses:
-                    try:
-                        course = Course.objects.get(shortname=c.strip())
-                        CourseCohort(cohort=cohort, course=course).save()
-                    except Course.DoesNotExist:
-                        pass
+            courses=Course.objects.all()
+            #if len(courses) > 0:
+            for c in courses:
+                try:
+                    course = Course.objects.get(shortname=c.shortname)
+                    CourseCohort(cohort=cohort, course=course).save()
+                except Course.DoesNotExist:
+                    pass
                     
             return HttpResponseRedirect('../../')
            
     else:
-        participant_teachers = Participant.objects.filter(cohort=cohort,role=Participant.TEACHER)
+        '''participant_teachers = Participant.objects.filter(cohort=cohort,role=Participant.TEACHER)
         teacher_list = []
         for pt in participant_teachers:
             teacher_list.append(pt.user.username)
@@ -1104,14 +1271,12 @@ def cohort_edit(request,cohort_id):
         course_list = []
         for c in cohort_courses:
             course_list.append(c.shortname)
-        courses = ", ".join(course_list)
+        courses = ", ".join(course_list)'''
         
-        form = CohortForm(initial={'description': cohort.description,
-                                   'teachers': teachers,
-                                   'students': students,
+        form = CohortForm(initial={'description': cohort.school,
                                    'start_date': cohort.start_date,
                                    'end_date': cohort.end_date,
-                                   'courses': courses}) 
+                                  }) 
 
     return render(request, 'oppia/cohort-form.html',{'form': form,}) 
 
