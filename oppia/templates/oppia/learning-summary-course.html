@@ -9,8 +9,9 @@
 
 {% block content %}
 
-<h2>{{course.title|title_lang:LANGUAGE_CODE}} </h2>
+<h2 style="color:#77A240">{{course.title|title_lang:LANGUAGE_CODE}} </h2>
   <h3>{{'No of Downloads: '}}{{course.no_downloads}}</h3>
+  <h3>{{'No of Video Downloads: '}}{{course.no_media_downloads}}</h3>
 	<div class="table-responsive">
 
   <h2>Started Modules</h2>

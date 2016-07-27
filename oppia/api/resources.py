@@ -70,12 +70,14 @@ class UserResource(ModelResource):
     class Meta:
         queryset = User.objects.all()
         resource_name = 'user'
-        fields = ['first_name', 'last_name', 'email','last_login','username', 'points','badges','survey_status','school_code','status','year_group','program','home_town']
+        fields = ['first_name', 'last_name', 'email','last_login','username', 'points','badges','survey_status','school_code','status','year_group','program','home_town','imei']
         allowed_methods = ['post']
         authentication = Authentication()
         authorization = Authorization()
         serializer = UserJSONSerializer()
         always_return_data = True       
+
+
     
     def obj_create(self, bundle, **kwargs):
         
@@ -99,6 +101,10 @@ class UserResource(ModelResource):
                 tracker.ip = bundle.request.META.get('REMOTE_ADDR','0.0.0.0')
                 tracker.agent =bundle.request.META.get('HTTP_USER_AGENT','unknown')
                 tracker.save()
+
+                up=UserProfile.objects.get(user=u)
+                up.imei= bundle.data['imei']
+                up.save()
             else:
                 raise BadRequest(_(u'Authentication failure'))
         else:
@@ -553,6 +559,31 @@ class SurveyResource(ModelResource):
             raise BadRequest(_(u'You have taken this survey already' % username))
         return bundle        
 
+
+class AppDownloadResource(ModelResource):
+    ''' 
+    For retrieving user imei number for downloads of the append
+    '''
+    class Meta:
+        queryset = User.objects.all()
+        resource_name = 'appdownload'
+        allowed_methods = ['post']
+        fields = ['username', 'first_name','last_name','email','imei']
+        authorization = Authorization() 
+        always_return_data = True 
+        include_resource_uri = False
+         
+    def obj_create(self, bundle, **kwargs):
+        data = {'imei': bundle.data['imei'],
+                'username': bundle.data['username'],}
+      
+        username = bundle.data['username']
+        bundle.obj = User.objects.get(username=username)
+        up=UserProfile.objects.get(user=bundle.obj)
+        up.imei= bundle.data['imei']
+        up.save()
+
+        return bundle  
 class ResetPasswordResource(ModelResource):
     ''' 
     For resetting user password
@@ -657,7 +688,8 @@ class TrackerResource(ModelResource):
             bundle.obj.type = ''
             bundle.obj.activity_title = ''
             bundle.obj.section_title = ''
-        
+
+         #Logging video(media) downloads from the tracker
         try:
             if 'course' in bundle.data:
                 media_objs = Media.objects.filter(digest=bundle.data['digest'],course__shortname=bundle.data['course'])[:1]
@@ -669,7 +701,20 @@ class TrackerResource(ModelResource):
                 bundle.obj.type = 'media'
         except Media.DoesNotExist:
             pass
-        
+
+        #Logging course downloads from the tracker
+
+        try:
+            json_data = json.loads(bundle.data['data'])
+            if json_data['version']:
+                course_objs = Course.objects.filter(version=json_data['version'])[:1]
+
+                if course_objs.count() > 0:
+                    course = course_objs[0]
+                    bundle.obj.course = course
+                    bundle.obj.type = 'download'
+        except Course.DoesNotExist:
+            pass
         # this try/except block is temporary until everyone is using client app v17
         try:
             json_data = json.loads(bundle.data['data'])
@@ -813,14 +858,14 @@ class CourseResource(ModelResource):
         response['Content-Disposition'] = 'attachment; filename="%s"' %(course.filename)
         
         # Add to tracker
-        tracker = Tracker()
-        tracker.user = request.user
-        tracker.course = course
-        tracker.type = 'download'
-        tracker.data = json.dumps({'version':course.version })
-        tracker.ip = request.META.get('REMOTE_ADDR','0.0.0.0')
-        tracker.agent = request.META.get('HTTP_USER_AGENT','unknown')
-        tracker.save()
+        #tracker = Tracker()
+        #tracker.user = request.user
+        #tracker.course = course
+        #tracker.type = 'download'
+        #tracker.data = json.dumps({'version':course.version })
+        #tracker.ip = request.META.get('REMOTE_ADDR','0.0.0.0')
+        #tracker.agent = request.META.get('HTTP_USER_AGENT','unknown')
+        #tracker.save()
                 
         course_downloaded.send(sender=self, course=course, user=request.user)
         

@@ -441,12 +441,14 @@ def learning_summary_view(request):
     if request.user.is_superuser:
         acts = Activity.objects.filter(baseline=False).values_list('digest')
         downloads=Tracker.objects.filter(type='download', course_id__isnull=False).count()   
+        app_downloads=UserProfile.objects.filter(imei__isnull=False).count()   
         started=Tracker.objects.filter(completed=False,type="page",digest__in=acts).values_list('user_id').distinct().count()
         completed=Tracker.objects.filter(completed=True,type="page",digest__in=acts).values_list('user_id').distinct().count()
         quizzes=Tracker.objects.filter(digest__in=acts, type=Activity.QUIZ).values_list('user_id').distinct().count()
     else:
         acts = Activity.objects.filter(baseline=False).values_list('digest')
         downloads=Tracker.objects.filter(type='download', course_id__isnull=False,user__userprofile__school_code=request.user.userprofile.school_code).count()   
+        app_downloads=UserProfile.objects.filter(imei__isnull=False,user__userprofile__school_code=request.user.userprofile.school_code).count()   
         started=Tracker.objects.filter(completed=False,type="page",user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
         completed=Tracker.objects.filter(completed=True,type="page",user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
         quizzes=Tracker.objects.filter(type=Activity.QUIZ, user__userprofile__school_code=request.user.userprofile.school_code).values_list('user_id').distinct().count()
@@ -456,11 +458,13 @@ def learning_summary_view(request):
             completed_modules=Tracker.objects.filter(course=c,type="page",completed=True).values_list('digest').distinct().count()
             no_quizzes= Tracker.objects.filter(course=c,type="quiz").values_list('digest').distinct().count()
             no_downloads=Tracker.objects.filter(course=c, type='download').count()
+            no_media_downloads=Tracker.objects.filter(course=c, type='media').count()
             data={'course':c,
             'started_modules':started_modules,
             'completed_modules':completed_modules,
             'no_quizzes':no_quizzes,
             'no_downloads':no_downloads,
+            'no_media_downloads':no_media_downloads,
             }
             access.append(data)
         else:
@@ -468,16 +472,19 @@ def learning_summary_view(request):
             completed_modules=Tracker.objects.filter(course=c,type="page",completed=True,user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
             no_quizzes= Tracker.objects.filter(course=c,type="quiz",user__userprofile__school_code=request.user.userprofile.school_code).values_list('digest').distinct().count()
             no_downloads=Tracker.objects.filter(course=c, type='download',user__userprofile__school_code=request.user.userprofile.school_code).count()
+            no_media_downloads=Tracker.objects.filter(course=c, type='media',user__userprofile__school_code=request.user.userprofile.school_code).count()
             data={'course':c,
             'started_modules':started_modules,
             'completed_modules':completed_modules,
             'no_quizzes':no_quizzes,
             'no_downloads':no_downloads,
+            'no_media_downloads':no_media_downloads,
             }
             access.append(data)
     return render_to_response('oppia/learning-summary.html',
                               {'data': access,
                                 'downloads':downloads,
+                                'app_downloads':app_downloads,
                                 'started':started,
                                 'completed':completed,
                                 'quizzes':quizzes,

@@ -33,7 +33,7 @@ class UserProfile (models.Model):
     home_town = models.TextField(blank=True, null=True, default=None)
     school_code = models.TextField(blank=True, null=True, default=None)
     gender= models.TextField(blank=True, null=True, default=None)
-    
+    imei =models.TextField(blank=True,null=True,default=None)
     def get_can_upload(self):
         if self.user.is_staff:
             return True
@@ -103,6 +103,10 @@ class Course(models.Model):
     def no_downloads(self):
         no_downloads = Tracker.objects.filter(course=self, type='download').count()
         return no_downloads
+
+    def no_media_downloads(self):
+        no_media_downloads = Tracker.objects.filter(course=self, type='media').count()
+        return no_media_downloads
     
     def no_distinct_downloads(self):
         no_distinct_downloads = Tracker.objects.filter(course=self, type='download').values('user_id').distinct().count()
